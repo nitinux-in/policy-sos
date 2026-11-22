@@ -13,10 +13,10 @@ type Msg =
   | { id: number; role: 'error'; text: string; retry: string };
 
 const SUGGESTIONS = [
-  { group: 'Emergency', short: 'Father in hospital', icon: AlertOctagon, q: 'My father has been admitted after a cardiac emergency. Which policy can help, and what should I do?' },
-  { group: 'Can I claim?', short: 'Cracked windshield', icon: Car, q: 'My car windshield cracked yesterday. Can I claim this, and will I have to pay anything?' },
-  { group: 'Plan a trip', short: 'Japan next month', icon: Plane, q: "I'm travelling to Japan next month. What should I check?" },
-  { group: 'Compare', short: 'My health covers', icon: Table2, q: 'Compare my health policies' },
+  { group: 'Emergency', short: 'Someone’s in hospital', icon: AlertOctagon, q: 'My father has been admitted after a cardiac emergency. Which policy can help, and what should I do?' },
+  { group: 'Check a claim', short: 'Cracked windshield', icon: Car, q: 'My car windshield cracked yesterday. Can I claim this, and will I have to pay anything?' },
+  { group: 'Before you travel', short: 'Japan next month', icon: Plane, q: "I'm travelling to Japan next month. What should I check?" },
+  { group: 'Compare cover', short: 'Your 2 health plans', icon: Table2, q: 'Compare my health policies' },
 ];
 
 let nextId = 1;
@@ -117,7 +117,7 @@ export function Assistant({ data, initialPrompt, onClose }: { data: PortfolioDat
           <p className="text-[15px] font-semibold leading-tight">Policy SOS</p>
           <p className="flex items-center gap-1.5 text-[11.5px] text-ink-3">
             <span className={`h-1.5 w-1.5 rounded-full ${aiOn ? 'bg-ok' : aiOn === false ? 'bg-warn' : 'bg-line'}`} />
-            {aiOn ? 'AI agent · reads your 7 policies' : aiOn === false ? 'Offline demo mode · rule-based planner' : 'Connecting…'}
+            {aiOn ? `Live · checks all ${data.policies.length} of your policies` : aiOn === false ? 'Offline mode · basic answers only' : 'Connecting…'}
           </p>
         </div>
         {msgs.length > 0 && (
@@ -132,11 +132,12 @@ export function Assistant({ data, initialPrompt, onClose }: { data: PortfolioDat
       <div ref={scrollRef} className="no-scrollbar relative flex-1 space-y-4 overflow-y-auto px-4 py-4">
         {msgs.length === 0 && !busy && (
           <div className="animate-in pt-6">
-            <p className="text-[13px] text-ink-3">Hi {data.user.name.split(' ')[0]}</p>
+            <p className="text-[13px] text-ink-3">Hi {data.user.name.split(' ')[0]} 👋</p>
             <p className="mt-1 text-[30px] font-semibold leading-[1.1] tracking-tight">
-              What's <span className="text-violet">happening</span> today?
+              What do you need <span className="text-violet">covered?</span>
             </p>
-            <div className="mt-7 grid grid-cols-2 gap-2.5">
+            <p className="mt-2 text-[14px] text-ink-2">Straight answers from your {data.policies.length} policies — with the clause to back them.</p>
+            <div className="mt-6 grid grid-cols-2 gap-2.5">
               {SUGGESTIONS.slice(0, 4).map((s) => {
                 const Icon = s.icon;
                 return (
@@ -160,7 +161,7 @@ export function Assistant({ data, initialPrompt, onClose }: { data: PortfolioDat
             </div>
           ) : m.role === 'error' ? (
             <div key={m.id} className="rounded-2xl border border-bad/20 bg-bad-bg p-3.5 text-[13px]">
-              <p className="font-semibold text-bad">Couldn't get an answer</p>
+              <p className="font-semibold text-bad">That didn't go through</p>
               <p className="mt-0.5 text-ink-2">{m.text}</p>
               {m.retry && <button onClick={() => send(m.retry)} className="mt-2 rounded-full bg-ink px-3 py-1.5 text-[12px] font-medium text-white">Try again</button>}
             </div>
@@ -184,7 +185,7 @@ export function Assistant({ data, initialPrompt, onClose }: { data: PortfolioDat
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); } }}
             rows={1}
             maxLength={1500}
-            placeholder="Ask anything…"
+            placeholder="Describe what happened…"
             className="max-h-28 flex-1 resize-none bg-transparent py-2 text-[14.5px] outline-none placeholder:text-ink-3"
             aria-label="Message"
           />
@@ -192,6 +193,7 @@ export function Assistant({ data, initialPrompt, onClose }: { data: PortfolioDat
             {busy ? <Loader2 size={17} className="animate-spin" /> : <ArrowUp size={18} />}
           </button>
         </div>
+        <p className="mt-2 text-center text-[10.5px] text-ink-3">Guidance only · your insurer makes the final call on claims</p>
       </form>
     </div>
   );
@@ -202,9 +204,9 @@ export function Assistant({ data, initialPrompt, onClose }: { data: PortfolioDat
 function LiveActivity({ steps }: { steps: AgentStep[] }) {
   return (
     <div className="animate-in rounded-2xl border border-line bg-surface p-3.5">
-      <p className="flex items-center gap-2 text-[13px] font-semibold"><Loader2 size={15} className="animate-spin text-violet" /> Working on it</p>
+      <p className="flex items-center gap-2 text-[13px] font-semibold"><Loader2 size={15} className="animate-spin text-violet" /> Checking your policies</p>
       <ul className="mt-2 space-y-1.5">
-        {steps.length === 0 && <li className="text-[12.5px] text-ink-3">Understanding your question…</li>}
+        {steps.length === 0 && <li className="text-[12.5px] text-ink-3">Reading your question…</li>}
         {steps.map((s, i) => (
           <li key={i} className="animate-in flex items-start gap-2 text-[12.5px]">
             {s.ok ? <Check size={14} className="mt-0.5 text-ok" /> : <XCircle size={14} className="mt-0.5 text-warn" />}

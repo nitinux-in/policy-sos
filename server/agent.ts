@@ -286,12 +286,32 @@ function runOffline(message: string, col: Collector, reason: string): AgentAnswe
       : best?.status === 'Uncertain'
         ? '**Possibly covered — it depends on details not yet known.**'
         : '**I could not find coverage for this in your policy data.**';
-  return col.answer('demo', `${head}\n\n${lines.join('\n')}`, note, message);
+  const g = GUARANTEE.test(message) ? "**I can't guarantee approval — only your insurer decides.** Here's what your policy says:\n\n" : '';
+  return col.answer('demo', `${g}${head}\n\n${lines.join('\n')}`, note, message);
 }
 
 // ---------- entry ----------
 
+// ---------- guardrails (run before any AI call) ----------
+
+const JAILBREAK = /(ignore|forget|disregard|override)\b.{0,30}\b(instructions|rules|prompt|guidelines)|system prompt|developer mode|\bDAN\b|jailbreak|pretend (you are|to be)|act as (an?|my)|you are now|reveal (your|the) (prompt|instructions)|<\/?script|drop table/i;
+const GUARANTEE = /(guarantee|promise|100%|definitely|confirm).{0,40}(approv|pay|cover|claim|settle)/i;
+const ABUSE = /\b(fuck|shit|bitch|bastard|idiot)\b/i;
+
+function guard(message: string): AgentAnswer | null {
+  const blank = (text: string, note?: string): AgentAnswer => ({ mode: 'ai', text, steps: [{ tool: 'guardrail', label: 'Safety check', detail: note, ok: true }], coverage: [], evidence: [] });
+  const letters = message.replace(/[^\p{L}]/gu, '');
+  if (letters.length < 2) return blank("**I didn't catch that.**\n\nTry: *“Is my windshield damage covered?”*", 'Unclear input');
+  if (/(.)\1{9,}/.test(message) || (letters.length > 20 && !/[aeiou]/i.test(letters))) return blank("**That doesn't look like a question.**\n\nDescribe what happened in a sentence.", 'Gibberish input');
+  if (JAILBREAK.test(message)) return blank("**I can't change how I work.**\n\nI only answer from your policy documents. Ask me about any of your 7 policies.", 'Manipulation attempt blocked');
+  if (ABUSE.test(message) && !INSURANCE_HINT.test(message)) return blank("**I'm here to help with your insurance.**\n\nTell me what happened and I'll check your cover.", 'Abusive input');
+  return null;
+}
+
 export async function runAgent(message: string, history: ChatTurn[], emit: (s: AgentStep) => void): Promise<AgentAnswer> {
+  const blocked = guard(message);
+  if (blocked) { emit(blocked.steps[0]); return blocked; }
+  if (GUARANTEE.test(message)) message += '\n\n[Note for assistant: the user is asking for a guarantee. Explain clearly that only the insurer can approve a claim; never promise approval.]';
   if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.startsWith('your_')) {
     return runOffline(message, new Collector(emit), 'no AI key configured');
   }

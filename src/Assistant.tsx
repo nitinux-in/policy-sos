@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import {
-  AlertOctagon, ArrowUp, Calculator, Check, CheckCircle2, ChevronDown, CircleHelp, FileSearch, ListChecks,
+  AlertOctagon, ArrowUp, Car, Plane, Calculator, Check, CheckCircle2, ChevronDown, CircleHelp, FileSearch, ListChecks,
   Loader2, RotateCcw, ShieldAlert, Sparkles, Table2, X, XCircle,
 } from 'lucide-react';
 import type { AgentAnswer, AgentStep, ChatTurn, CoverageStatus, PortfolioData } from '../shared/types';
@@ -12,12 +12,11 @@ type Msg =
   | { id: number; role: 'assistant'; answer: AgentAnswer }
   | { id: number; role: 'error'; text: string; retry: string };
 
-const SUGGESTIONS: { group: string; q: string }[] = [
-  { group: 'Check a claim', q: 'My car windshield cracked yesterday. Can I claim this, and will I have to pay anything?' },
-  { group: 'Plan', q: "I'm travelling to Japan next month. What should I check?" },
-  { group: 'Compare', q: 'Compare my health policies' },
-  { group: 'Emergency', q: 'My father has been admitted after a cardiac emergency. Which policy can help, and what should I do?' },
-  { group: 'Explain', q: 'Is dental treatment covered by any of my policies?' },
+const SUGGESTIONS = [
+  { group: 'Can I claim?', short: 'Cracked windshield', icon: Car, q: 'My car windshield cracked yesterday. Can I claim this, and will I have to pay anything?' },
+  { group: 'Plan a trip', short: 'Japan next month', icon: Plane, q: "I'm travelling to Japan next month. What should I check?" },
+  { group: 'Compare', short: 'My health covers', icon: Table2, q: 'Compare my health policies' },
+  { group: 'Emergency', short: 'Father in hospital', icon: AlertOctagon, q: 'My father has been admitted after a cardiac emergency. Which policy can help, and what should I do?' },
 ];
 
 let nextId = 1;
@@ -122,20 +121,25 @@ export function Assistant({ data, initialPrompt, onClose }: { data: PortfolioDat
       {/* Conversation */}
       <div ref={scrollRef} className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-4 py-4">
         {msgs.length === 0 && !busy && (
-          <div className="animate-in">
-            <p className="text-[20px] font-semibold tracking-tight">Hi {data.user.name.split(' ')[0]}, what's going on?</p>
-            <p className="mt-1 text-[13.5px] text-ink-2">
-              Ask about any situation. I'll search your {data.policies.length} policies, check the actual clauses, and tell you what's covered, what's unclear, and what to do next.
+          <div className="animate-in pt-6">
+            <p className="text-[13px] text-ink-3">Hi {data.user.name.split(' ')[0]}</p>
+            <p className="mt-1 text-[30px] font-semibold leading-[1.1] tracking-tight">
+              What's <span className="text-violet">happening</span> today?
             </p>
-            <div className="mt-5 space-y-2">
-              {SUGGESTIONS.map((s) => (
-                <button key={s.q} onClick={() => send(s.q)} className="w-full rounded-2xl border border-line bg-surface p-3 text-left active:bg-line-2">
-                  <p className={`text-[11px] font-semibold uppercase tracking-wide ${s.group === 'Emergency' ? 'text-bad' : 'text-violet'}`}>{s.group}</p>
-                  <p className="mt-0.5 text-[13.5px] font-medium">{s.q}</p>
-                </button>
-              ))}
+            <div className="mt-7 grid grid-cols-2 gap-2.5">
+              {SUGGESTIONS.slice(0, 4).map((s) => {
+                const Icon = s.icon;
+                return (
+                  <button key={s.q} onClick={() => send(s.q)} className="flex aspect-square flex-col justify-between rounded-3xl bg-surface p-4 text-left shadow-[0_1px_0_rgba(0,0,0,0.04)] active:scale-[0.98]">
+                    <span className={`grid h-9 w-9 place-items-center rounded-full ${s.group === 'Emergency' ? 'bg-bad-bg text-bad' : 'bg-violet-2 text-violet'}`}><Icon size={17} /></span>
+                    <span>
+                      <span className="block text-[15px] font-semibold">{s.group}</span>
+                      <span className="mt-0.5 block text-[12px] leading-snug text-ink-3">{s.short}</span>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            <p className="mt-4 text-[11px] text-ink-3">Uses simulated policy data. Not legal or financial advice; your insurer makes the final claim decision.</p>
           </div>
         )}
 
@@ -170,7 +174,7 @@ export function Assistant({ data, initialPrompt, onClose }: { data: PortfolioDat
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); } }}
             rows={1}
             maxLength={1500}
-            placeholder="Describe your situation…"
+            placeholder="Ask anything…"
             className="max-h-28 flex-1 resize-none bg-transparent py-2 text-[14.5px] outline-none placeholder:text-ink-3"
             aria-label="Message"
           />

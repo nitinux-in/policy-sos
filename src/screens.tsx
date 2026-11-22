@@ -111,9 +111,8 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onTab }: { data: Por
 
       {/* Portfolio summary */}
       <section className="mx-5 mt-4 rounded-3xl bg-ink p-5 text-white">
-        <p className="text-[12.5px] text-white/60">Total cover across your portfolio</p>
+        <p className="text-[12.5px] text-white/60">Total cover · all policies</p>
         <p className="tnum mt-1 text-[32px] font-semibold tracking-tight">{fmtMoney({ currency: 'INR' }, totalCover, true)}</p>
-        <p className="mt-0.5 text-[12.5px] text-white/60">+ US$100,000 travel medical</p>
         <div className="mt-4 grid grid-cols-3 gap-2 border-t border-white/10 pt-4 text-[12px]">
           <div><p className="text-white/50">Policies</p><p className="tnum mt-0.5 text-[16px] font-semibold">{data.policies.length}</p></div>
           <div><p className="text-white/50">Insurers</p><p className="tnum mt-0.5 text-[16px] font-semibold">{insurers}</p></div>

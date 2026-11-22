@@ -22,7 +22,14 @@ const ChatBody = z.object({
   history: z.array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().max(4000) })).max(20).default([]),
 });
 
+// Simple rate limit: 20 messages per minute per device
+const hits = new Map<string, number[]>();
 app.post('/api/chat', async (req, res) => {
+  const ip = req.ip ?? 'x';
+  const now = Date.now();
+  const recent = (hits.get(ip) ?? []).filter((t) => now - t < 60_000);
+  if (recent.length >= 20) { res.status(429).json({ error: 'Too many messages. Please wait a minute.' }); return; }
+  hits.set(ip, [...recent, now]);
   const parsed = ChatBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' });

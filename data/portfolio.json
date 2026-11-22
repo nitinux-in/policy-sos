@@ -78,6 +78,22 @@
           "text": "Cashless treatment is available at network hospitals. Planned admissions need pre-authorisation 48 hours before admission; emergency admissions must be intimated within 24 hours."
         },
         {
+          "id": "HLT-01-3.3",
+          "section": "Section 3.3",
+          "title": "Network hospitals (Pune)",
+          "type": "condition",
+          "topics": [
+            "network",
+            "hospital",
+            "cashless",
+            "riverside",
+            "greenfield",
+            "pune",
+            "admitted"
+          ],
+          "text": "Cashless network hospitals in Pune (simulated list): Riverside Multispeciality, Greenfield General. Other hospitals: reimbursement only."
+        },
+        {
           "id": "HLT-01-3.4",
           "section": "Section 3.4",
           "title": "Pre and post hospitalisation",
@@ -292,6 +308,25 @@
             "waiting period"
           ],
           "text": "Pre-existing diseases and the 30-day initial waiting period are waived for all enrolled members."
+        },
+        {
+          "id": "HLT-02-2.6",
+          "section": "Clause 2.6",
+          "title": "Network hospitals (Pune)",
+          "type": "condition",
+          "topics": [
+            "network",
+            "hospital",
+            "cashless",
+            "lotus",
+            "lotus heart institute",
+            "heart institute",
+            "sahyadri",
+            "riverside",
+            "pune",
+            "admitted"
+          ],
+          "text": "Cashless network hospitals in Pune (simulated list): Lotus Heart Institute, Riverside Multispeciality, Sahyadri Care Hospital. Other hospitals: reimbursement only."
         },
         {
           "id": "HLT-02-2.3",

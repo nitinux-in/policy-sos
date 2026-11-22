@@ -81,116 +81,61 @@ export function Sheet({ title, onClose, children }: { title: ReactNode; onClose:
 
 // ---------- Overview ----------
 
-const QUICK_ASKS = [
-  'My car windshield cracked. Can I claim it?',
-  "I'm travelling to Japan next month. What should I check?",
-  'Compare my health policies',
-];
-
 export function OverviewScreen({ data, onOpenPolicy, onAsk, onTab }: { data: PortfolioData; onOpenPolicy: (p: Policy) => void; onAsk: (q?: string) => void; onTab: (t: Tab) => void }) {
-  const inr = data.policies.filter((p) => p.currency === 'INR');
-  const totalCover = inr.reduce((s, p) => s + p.sumInsured, 0);
-  const annualPremium = inr.reduce((s, p) => s + p.premium, 0);
+  const totalCover = data.policies.reduce((s, p) => s + p.sumInsured, 0);
   const insurers = new Set(data.policies.map((p) => p.provider)).size;
-  const renewals = [...data.policies].filter((p) => daysUntil(p.renewalDate) <= 60).sort((a, b) => a.renewalDate.localeCompare(b.renewalDate));
-  const cats = Object.keys(CATEGORY) as Category[];
+  const alert = [...data.policies].sort((a, b) => a.renewalDate.localeCompare(b.renewalDate)).find((p) => daysUntil(p.renewalDate) <= 30);
   const hour = new Date().getHours();
   const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <div className="animate-in">
-      <header className="px-5 pt-[max(env(safe-area-inset-top),20px)]">
-        <div className="flex items-center justify-between pt-3">
-          <div>
-            <p className="text-[13px] text-ink-3">{greet}</p>
-            <h1 className="text-[24px] font-semibold tracking-tight">{data.user.name.split(' ')[0]}</h1>
-          </div>
-          <SimBadge />
+    <div className="animate-in px-5">
+      <header className="flex items-center justify-between pt-[max(env(safe-area-inset-top),28px)]">
+        <div>
+          <p className="text-[13px] text-ink-3">{greet}</p>
+          <h1 className="text-[22px] font-semibold tracking-tight">{data.user.name.split(' ')[0]}</h1>
         </div>
+        <SimBadge />
       </header>
 
-      {/* Portfolio summary */}
-      <section className="mx-5 mt-4 rounded-3xl bg-ink p-5 text-white">
-        <p className="text-[12.5px] text-white/60">Total cover · all policies</p>
-        <p className="tnum mt-1 text-[32px] font-semibold tracking-tight">{fmtMoney({ currency: 'INR' }, totalCover, true)}</p>
-        <div className="mt-4 grid grid-cols-3 gap-2 border-t border-white/10 pt-4 text-[12px]">
-          <div><p className="text-white/50">Policies</p><p className="tnum mt-0.5 text-[16px] font-semibold">{data.policies.length}</p></div>
-          <div><p className="text-white/50">Insurers</p><p className="tnum mt-0.5 text-[16px] font-semibold">{insurers}</p></div>
-          <div><p className="text-white/50">Premium / yr</p><p className="tnum mt-0.5 text-[16px] font-semibold">{fmtMoney({ currency: 'INR' }, annualPremium, true)}</p></div>
-        </div>
+      <section className="mt-10">
+        <p className="text-[13px] text-ink-3">Total cover</p>
+        <p className="tnum mt-1 text-[44px] font-semibold leading-none tracking-tight">{fmtMoney({ currency: 'INR' }, totalCover, true)}</p>
+        <p className="mt-3 text-[13px] text-ink-3">
+          {data.policies.length} policies · {insurers} insurers
+        </p>
       </section>
 
-      {/* Coverage overview */}
-      <section className="no-scrollbar mt-4 flex gap-2 overflow-x-auto px-5">
-        {cats.map((c) => {
-          const has = data.policies.some((p) => p.category === c);
-          const M = CATEGORY[c];
-          return (
-            <button key={c} onClick={() => onTab('policies')} className="flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-[12.5px] font-medium">
-              <M.icon size={14} className={has ? 'text-ink' : 'text-ink-3'} />
-              {M.label}
-              <span className={`h-1.5 w-1.5 rounded-full ${has ? 'bg-ok' : 'bg-line'}`} />
-            </button>
-          );
-        })}
-      </section>
-
-      {/* Needs attention */}
-      {renewals.length > 0 && (
-        <section className="mx-5 mt-5">
-          <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-ink-3">Needs attention</h2>
-          {renewals.slice(0, 2).map((p) => (
-            <div key={p.id} className="mb-2 rounded-2xl border border-warn/20 bg-warn-bg p-4">
-              <div className="flex items-start gap-3">
-                <AlertTriangle size={18} className="mt-0.5 shrink-0 text-warn" />
-                <div className="flex-1">
-                  <p className="text-[14px] font-semibold">{p.name} expires {fmtDate(p.renewalDate)}</p>
-                  <p className="mt-0.5 text-[12.5px] text-ink-2">
-                    {p.category === 'travel' ? "Trips after this date won't be covered." : 'Renew on time to avoid a gap in cover.'} {daysUntil(p.renewalDate)} days left.
-                  </p>
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      onClick={() => onAsk(p.category === 'travel' ? "I'm travelling to Japan next month. What should I check?" : `My ${p.name} policy renews on ${p.renewalDate}. What should I review before renewing?`)}
-                      className="rounded-full bg-ink px-3 py-1.5 text-[12.5px] font-medium text-white"
-                    >
-                      {p.category === 'travel' ? 'Check my trip' : 'Review before renewal'}
-                    </button>
-                    <button onClick={() => onOpenPolicy(p)} className="rounded-full border border-ink/15 px-3 py-1.5 text-[12.5px] font-medium">View policy</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </section>
+      {alert && (
+        <button onClick={() => onOpenPolicy(alert)} className="mt-8 flex w-full items-center gap-3 rounded-2xl bg-warn-bg px-4 py-3 text-left">
+          <AlertTriangle size={16} className="shrink-0 text-warn" />
+          <span className="flex-1 text-[13px]"><span className="font-semibold">{CATEGORY[alert.category].label}</span> expires in {daysUntil(alert.renewalDate)} days</span>
+          <ChevronRight size={16} className="text-ink-3" />
+        </button>
       )}
 
-      {/* Ask */}
-      <section className="mx-5 mt-5 rounded-2xl border border-violet/15 bg-violet-2/60 p-4">
-        <div className="flex items-center gap-2">
-          <Sparkles size={16} className="text-violet" />
-          <p className="text-[14px] font-semibold">Ask about any situation</p>
+      <section className="mt-8">
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="text-[15px] font-semibold">Policies</h2>
+          <button onClick={() => onTab('policies')} className="text-[13px] text-ink-3">See all</button>
         </div>
-        <p className="mt-1 text-[12.5px] text-ink-2">Policy SOS checks the fine print across all your policies.</p>
-        <div className="mt-3 space-y-1.5">
-          {QUICK_ASKS.map((q) => (
-            <button key={q} onClick={() => onAsk(q)} className="flex w-full items-center justify-between rounded-xl bg-surface px-3 py-2.5 text-left text-[13px] font-medium active:bg-line-2">
-              {q} <ChevronRight size={15} className="shrink-0 text-ink-3" />
-            </button>
-          ))}
+        <div className="divide-y divide-line-2 rounded-2xl bg-surface">
+          {data.policies.slice(0, 5).map((p) => {
+            const M = CATEGORY[p.category];
+            return (
+              <button key={p.id} onClick={() => onOpenPolicy(p)} className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-line-2">
+                <M.icon size={18} strokeWidth={1.8} className="shrink-0 text-ink-2" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[14px] font-medium">{p.name}</span>
+                  <span className="block text-[12px] text-ink-3">{M.label}</span>
+                </span>
+                <span className="tnum text-[14px] font-medium">{fmtMoney(p, p.sumInsured, true)}</span>
+              </button>
+            );
+          })}
         </div>
       </section>
 
-      {/* Policies */}
-      <section className="mx-5 mt-6">
-        <div className="mb-2 flex items-baseline justify-between">
-          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-ink-3">Your policies</h2>
-          <button onClick={() => onTab('policies')} className="text-[12.5px] font-medium text-violet">See all</button>
-        </div>
-        <div className="space-y-2">
-          {data.policies.slice(0, 4).map((p) => <PolicyCard key={p.id} p={p} onOpen={onOpenPolicy} />)}
-        </div>
-      </section>
-      <p className="mx-5 mt-6 text-[11px] leading-relaxed text-ink-3">{data.disclaimer}</p>
     </div>
   );
 }

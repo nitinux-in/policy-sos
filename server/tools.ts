@@ -271,20 +271,20 @@ export function evaluateCoverage(args: z.infer<typeof schemas.evaluateCoverage>)
 
     if (covered === false) {
       status = 'Not found';
-      reasoning = `${person} is not listed as an insured member of ${p.name} (insured: ${p.insured.join('; ')}).`;
+      reasoning = `${(person ?? "This person").replace(/^./, (c) => c.toUpperCase())} is not insured under this policy.`;
     } else if (supporting.length && !conflicting.length) {
       status = 'Supported';
-      reasoning = `Policy wording includes a benefit matching this situation (${supporting.map((s) => s.section).join(', ')}). Coverage still depends on the listed conditions and the insurer's assessment.`;
+      reasoning = `Covered under ${supporting.map((s) => s.section).join(', ')}. Conditions apply.`;
     } else if (supporting.length && conflicting.length) {
       status = 'Uncertain';
-      reasoning = `Both a matching benefit (${supporting.map((s) => s.section).join(', ')}) and a possibly relevant exclusion (${conflicting.map((s) => s.section).join(', ')}) exist. The outcome depends on facts not yet known.`;
+      reasoning = `Benefit (${supporting.map((s) => s.section).join(', ')}) and exclusion (${conflicting.map((s) => s.section).join(', ')}) both may apply.`;
       unknowns.push('Specific facts that decide whether the exclusion applies');
     } else if (conflicting.length) {
       status = 'Not found';
-      reasoning = `No matching benefit found; an exclusion appears relevant (${conflicting.map((s) => s.section).join(', ')}).`;
+      reasoning = `Excluded under ${conflicting.map((s) => s.section).join(', ')}.`;
     } else {
       status = 'Not found';
-      reasoning = `No clause in ${p.name} clearly addresses this situation in the available policy data.`;
+      reasoning = 'No clause covers this situation.';
     }
     if (covered === undefined && person) unknowns.push(`Whether "${person}" is an insured member could not be confirmed`);
     if (conditions.some((c) => c.type === 'waiting_period')) unknowns.push('Whether the relevant waiting period has been completed / whether the condition is pre-existing');
@@ -440,14 +440,15 @@ export function generateActionPlan(args: z.infer<typeof schemas.generateActionPl
   const t = norm(args.scenario);
   const medical = /hospital|admit|cardiac|heart|emergency|injur|accident|icu|chest pain|unconscious|bleeding/.test(t);
   if (args.urgent && medical) {
-    steps.push({ text: 'Get medical care first — call 112 / go to the nearest emergency room.', detail: 'Do not delay treatment to check insurance. Coverage can be sorted out after admission.' });
+    steps.push({ text: 'Get care first — call 112', detail: 'Never delay treatment for insurance checks.' });
   }
   for (const p of policies) {
     const claim = p.clauses.find((c) => c.type === 'claim_process');
     const cashless = p.clauses.find((c) => /cashless/i.test(c.title));
-    if (args.urgent && cashless) steps.push({ text: `Ask the hospital TPA desk for cashless under ${p.name}`, detail: `${cashless.text} (${cashless.section}). Policy no. ${p.policyNumber}.` });
-    if (claim) steps.push({ text: `${p.name}: follow the claim process`, detail: `${claim.text} (${claim.section})` });
-    if (p.claimContact) steps.push({ text: `Contact ${p.provider}`, detail: p.claimContact });
+    if (args.urgent && cashless) steps.push({ text: `Request cashless under ${p.name}`, detail: `At the TPA desk · policy no. ${p.policyNumber}` });
+    if (claim && !args.urgent) steps.push({ text: `${p.name}: follow the claim process`, detail: `${claim.text} (${claim.section})` });
+    if (args.urgent && cashless) steps.push({ text: 'Inform the insurer within 24 hours', detail: p.claimContact });
+    if (p.claimContact && !args.urgent) steps.push({ text: `Contact ${p.provider}`, detail: p.claimContact });
     if (p.status !== 'active') steps.push({ text: `Check ${p.name} validity — renews/expires ${p.renewalDate}`, detail: 'Make sure your dates fall within the policy period, or renew before you go.' });
   }
   if (/travel|trip|japan|abroad|international|visa|flight/.test(t)) {
@@ -458,7 +459,7 @@ export function generateActionPlan(args: z.infer<typeof schemas.generateActionPl
   if (/glass|windshield|windscreen|damage|dent|accident/.test(t) && policies.some((p) => p.category === 'motor')) {
     steps.push({ text: 'Take clear photos of the damage before any repair', detail: 'Do not repair before the insurer survey.' });
   }
-  steps.push({ text: 'Keep all bills, reports and photos in one folder', detail: 'You will need originals or clear scans for claims.' });
+  steps.push({ text: 'Keep all bills and reports', detail: 'Needed for the claim.' });
   return {
     title: args.urgent ? 'Do this now' : 'Your next steps',
     urgent: args.urgent,

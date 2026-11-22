@@ -13,10 +13,10 @@ type Msg =
   | { id: number; role: 'error'; text: string; retry: string };
 
 const SUGGESTIONS = [
+  { group: 'Emergency', short: 'Father in hospital', icon: AlertOctagon, q: 'My father has been admitted after a cardiac emergency. Which policy can help, and what should I do?' },
   { group: 'Can I claim?', short: 'Cracked windshield', icon: Car, q: 'My car windshield cracked yesterday. Can I claim this, and will I have to pay anything?' },
   { group: 'Plan a trip', short: 'Japan next month', icon: Plane, q: "I'm travelling to Japan next month. What should I check?" },
   { group: 'Compare', short: 'My health covers', icon: Table2, q: 'Compare my health policies' },
-  { group: 'Emergency', short: 'Father in hospital', icon: AlertOctagon, q: 'My father has been admitted after a cardiac emergency. Which policy can help, and what should I do?' },
 ];
 
 let nextId = 1;
@@ -46,9 +46,19 @@ export function Assistant({ data, initialPrompt, onClose }: { data: PortfolioDat
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // While working: follow the live steps. When an answer arrives: show it from its first line.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    const el = scrollRef.current;
+    if (!el) return;
+    const last = msgs[msgs.length - 1];
+    if (!busy && last?.role === 'assistant') {
+      const q = el.querySelector<HTMLElement>('[data-last-question]');
+      if (q) { el.scrollTo({ top: q.offsetTop - 12, behavior: 'smooth' }); return; }
+    }
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [msgs, liveSteps, busy]);
+
+  const lastUserId = [...msgs].reverse().find((m) => m.role === 'user')?.id;
 
   function history(): ChatTurn[] {
     return msgs.flatMap((m): ChatTurn[] =>
@@ -119,7 +129,7 @@ export function Assistant({ data, initialPrompt, onClose }: { data: PortfolioDat
       </header>
 
       {/* Conversation */}
-      <div ref={scrollRef} className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="no-scrollbar relative flex-1 space-y-4 overflow-y-auto px-4 py-4">
         {msgs.length === 0 && !busy && (
           <div className="animate-in pt-6">
             <p className="text-[13px] text-ink-3">Hi {data.user.name.split(' ')[0]}</p>
@@ -145,7 +155,7 @@ export function Assistant({ data, initialPrompt, onClose }: { data: PortfolioDat
 
         {msgs.map((m) =>
           m.role === 'user' ? (
-            <div key={m.id} className="flex justify-end">
+            <div key={m.id} className="flex justify-end" {...(m.id === lastUserId ? { 'data-last-question': '' } : {})}>
               <p className="max-w-[85%] rounded-2xl rounded-br-md bg-ink px-3.5 py-2.5 text-[14px] text-white">{m.text}</p>
             </div>
           ) : m.role === 'error' ? (
@@ -218,8 +228,8 @@ function AnswerView({ a }: { a: AgentAnswer }) {
   return (
     <div className="animate-in space-y-2.5">
       {a.safetyNotice && (
-        <div className={`flex gap-2.5 rounded-2xl p-3.5 text-[13px] ${a.safetyNotice.startsWith('If someone') ? 'bg-bad text-white' : 'border border-warn/20 bg-warn-bg text-ink'}`}>
-          {a.safetyNotice.startsWith('If someone') ? <AlertOctagon size={18} className="shrink-0" /> : <ShieldAlert size={18} className="shrink-0 text-warn" />}
+        <div className={`flex gap-2.5 rounded-2xl p-3.5 text-[13px] ${a.safetyNotice.includes('112') ? 'bg-bad text-white' : 'border border-warn/20 bg-warn-bg text-ink'}`}>
+          {a.safetyNotice.includes('112') ? <AlertOctagon size={18} className="shrink-0" /> : <ShieldAlert size={18} className="shrink-0 text-warn" />}
           <p className="font-medium">{a.safetyNotice}</p>
         </div>
       )}
@@ -234,7 +244,7 @@ function AnswerView({ a }: { a: AgentAnswer }) {
         {a.mode === 'demo' && a.modeNote && <p className="mt-2 text-[11px] text-ink-3">{a.modeNote}</p>}
       </div>
 
-      {a.coverage.map((c) => {
+      {(a.coverage.some((c) => c.status !== 'Not found') ? a.coverage.filter((c) => c.status !== 'Not found') : a.coverage).map((c) => {
         const S = STATUS[c.status];
         return (
           <div key={c.policyId} className="rounded-2xl border border-line bg-surface p-3.5">
@@ -305,17 +315,17 @@ function AnswerView({ a }: { a: AgentAnswer }) {
       {a.plan && <PlanCard plan={a.plan} />}
 
       {a.evidence.length > 0 && (
-        <div className="rounded-2xl border border-line bg-surface p-3.5">
-          <p className="flex items-center gap-2 text-[13.5px] font-semibold"><FileSearch size={15} className="text-violet" /> Policy evidence ({a.evidence.length})</p>
-          <p className="mt-0.5 text-[11.5px] text-ink-3">Exact clauses retrieved from your (simulated) policy data.</p>
-          <div className="mt-2 space-y-1.5">
-            {a.evidence.map((e) => (
+        <div className="rounded-2xl border border-line bg-surface px-3.5 py-1.5">
+          <Expander label={`Policy evidence · ${Math.min(a.evidence.length, 5)} clauses`} icon={FileSearch}>
+          <div className="space-y-1.5 pb-1.5">
+            {a.evidence.slice(0, 5).map((e) => (
               <Expander key={e.clauseId} label={`${e.title} · ${e.section}`} tag={e.type.replace('_', ' ')} boxed>
                 <p className="text-[12.5px] leading-relaxed text-ink">“{e.text}”</p>
                 <p className="mt-1.5 text-[11px] text-ink-3">Source: {e.source}</p>
               </Expander>
             ))}
           </div>
+          </Expander>
         </div>
       )}
 
@@ -341,10 +351,10 @@ function PlanCard({ plan }: { plan: NonNullable<AgentAnswer['plan']> }) {
     <div className={`rounded-2xl border p-3.5 ${plan.urgent ? 'border-bad/25 bg-surface' : 'border-line bg-surface'}`}>
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-2 text-[13.5px] font-semibold"><ListChecks size={15} className={plan.urgent ? 'text-bad' : 'text-violet'} /> {plan.title}</p>
-        <span className="tnum text-[11.5px] text-ink-3">{done.size}/{plan.steps.length}</span>
+        <span className="tnum text-[11.5px] text-ink-3">{done.size}/{Math.min(plan.steps.length, 5)}</span>
       </div>
       <ul className="mt-2 space-y-1">
-        {plan.steps.map((s, i) => {
+        {plan.steps.slice(0, 5).map((s, i) => {
           const on = done.has(i);
           return (
             <li key={i}>
@@ -354,9 +364,9 @@ function PlanCard({ plan }: { plan: NonNullable<AgentAnswer['plan']> }) {
                 aria-pressed={on}
               >
                 <span className={`mt-0.5 grid h-[18px] w-[18px] shrink-0 place-items-center rounded-md border ${on ? 'border-violet bg-violet text-white' : 'border-ink/20'}`}>{on && <Check size={12} />}</span>
-                <span>
+                <span className="min-w-0">
                   <span className={`block text-[13px] font-medium ${on ? 'text-ink-3 line-through' : ''}`}>{s.text}</span>
-                  {s.detail && <span className="mt-0.5 block text-[12px] leading-snug text-ink-3">{s.detail}</span>}
+                  {s.detail && <span className="mt-0.5 block truncate text-[12px] leading-snug text-ink-3">{s.detail}</span>}
                 </span>
               </button>
             </li>

@@ -14,7 +14,9 @@ import type {
 } from '../shared/types.js';
 import { runTool, TOOL_LABELS, portfolio, type ToolName } from './tools.js';
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+// Primary model first, then fallbacks in case a model is retired or overloaded
+const MODELS = [...new Set([process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite', 'gemini-3.5-flash'])];
+let MODEL = MODELS[0];
 const MAX_ROUNDS = 6;
 const CALL_TIMEOUT_MS = 30_000;
 
@@ -315,10 +317,21 @@ export async function runAgent(message: string, history: ChatTurn[], emit: (s: A
   if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY.startsWith('your_')) {
     return runOffline(message, new Collector(emit), 'no AI key configured');
   }
-  const col = new Collector(emit);
-  try {
-    return await runGemini(message, history, col);
-  } catch (e) {
+  let lastErr: unknown;
+  for (const m of [MODEL, ...MODELS.filter((x) => x !== MODEL)]) {
+    const col = new Collector(emit);
+    try {
+      MODEL = m;
+      return await runGemini(message, history, col);
+    } catch (e) {
+      lastErr = e;
+      const msg = String((e as Error).message);
+      if (col.steps.length || !/404|not found|no longer|unavailable|503|overloaded/i.test(msg)) break; // only retry model-level errors
+      console.warn(`[agent] model ${m} failed (${msg.slice(0, 60)}), trying next`);
+    }
+  }
+  {
+    const e = lastErr;
     console.error('[agent] AI failure, falling back:', (e as Error).message);
     emit({ tool: 'fallback', label: 'AI service unavailable — switching to offline planner', ok: false });
     return runOffline(message, new Collector(emit), `AI service error: ${(e as Error).message.slice(0, 80)}`);

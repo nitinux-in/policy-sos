@@ -1,14 +1,16 @@
-import { Car, HeartPulse, Home, Plane, ShieldCheck, Activity, type LucideIcon } from 'lucide-react';
-import type { AgentAnswer, AgentStep, Category, ChatTurn, Policy, StreamEvent } from '../shared/types';
+import { HeartPulse, ShieldCheck, type LucideIcon } from 'lucide-react';
+import type { AgentAnswer, AgentStep, Category, Policy, StreamEvent } from '../shared/types';
+import { DEMO_TODAY, type ActiveCategory } from '../shared/demo';
 
-export const CATEGORY: Record<Category, { label: string; icon: LucideIcon; tint: string }> = {
-  health: { label: 'Health', icon: HeartPulse, tint: 'bg-rose-50 text-rose-700' },
-  life: { label: 'Term life', icon: ShieldCheck, tint: 'bg-emerald-50 text-emerald-700' },
-  motor: { label: 'Motor', icon: Car, tint: 'bg-sky-50 text-sky-700' },
-  travel: { label: 'Travel', icon: Plane, tint: 'bg-amber-50 text-amber-700' },
-  home: { label: 'Home', icon: Home, tint: 'bg-stone-100 text-stone-700' },
-  accident: { label: 'Accident', icon: Activity, tint: 'bg-orange-50 text-orange-700' },
+export const CATEGORY: Record<ActiveCategory, { label: string; icon: LucideIcon; coverLabel: string }> = {
+  health: { label: 'Health', icon: HeartPulse, coverLabel: 'Sum insured' },
+  life: { label: 'Term life', icon: ShieldCheck, coverLabel: 'Life cover' },
 };
+
+/** Category display info. Only active categories ever reach the app (the server scopes the data). */
+export function categoryMeta(c: Category) {
+  return CATEGORY[c as ActiveCategory] ?? CATEGORY.health;
+}
 
 export function fmtMoney(p: Pick<Policy, 'currency'>, n: number, compact = false): string {
   if (p.currency === 'USD') return `US$${n.toLocaleString('en-US')}`;
@@ -23,23 +25,32 @@ export function fmtDate(iso: string): string {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+/** Days from the fixed demo date (not the real clock), so outputs never drift. */
 export function daysUntil(iso: string): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = new Date(DEMO_TODAY + 'T00:00:00');
   return Math.round((new Date(iso + 'T00:00:00').getTime() - today.getTime()) / 86400000);
 }
 
-/** Sends a message to the agent and streams step events as they happen. */
+export type PolicyStatus = { kind: 'active' | 'renewing' | 'expired' | 'lapsed'; label: string };
+
+export function policyStatus(p: Policy): PolicyStatus {
+  const d = daysUntil(p.renewalDate);
+  if (p.status === 'lapsed') return { kind: 'lapsed', label: 'Lapsed' };
+  if (d < 0) return { kind: 'expired', label: 'Expired' };
+  if (p.status === 'expiring_soon' || d <= 30) return { kind: 'renewing', label: d === 0 ? 'Renews today' : `Renews in ${d} days` };
+  return { kind: 'active', label: 'Active' };
+}
+
+/** Sends a message to the local demo engine and streams its tool steps as they run. */
 export async function askAgent(
   message: string,
-  history: ChatTurn[],
   onStep: (s: AgentStep) => void,
   signal?: AbortSignal,
 ): Promise<AgentAnswer> {
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ message }),
     signal,
   });
   if (!res.ok || !res.body) {

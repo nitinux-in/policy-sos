@@ -1,5 +1,5 @@
 // Agent tools: deterministic functions that operate ONLY on the simulated policy dataset.
-// The model decides which tools to call; these functions never invent policy facts.
+// The local demo engine (server/agent.ts) decides which tools to run; these functions never invent policy facts.
 
 import { z } from 'zod';
 import { readFileSync } from 'node:fs';
@@ -16,10 +16,12 @@ import type {
   Policy,
   PortfolioData,
 } from '../shared/types.js';
+import { ACTIVE_CATEGORIES, DEMO_TODAY, scopePortfolio } from '../shared/demo.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-export const portfolio: PortfolioData = JSON.parse(
-  readFileSync(path.join(here, '..', 'data', 'portfolio.json'), 'utf8'),
+/** Active product data: health and term life only. Legacy categories in the JSON are never loaded into tools or UI. */
+export const portfolio: PortfolioData = scopePortfolio(
+  JSON.parse(readFileSync(path.join(here, '..', 'data', 'portfolio.json'), 'utf8')),
 );
 
 // ---------- text helpers ----------
@@ -54,6 +56,8 @@ const SYNONYMS: Record<string, string[]> = {
   mother: ['parents'],
   mom: ['mother', 'parents'],
   died: ['death'],
+  injured: ['accident', 'injury'],
+  injury: ['accident'],
   pipe: ['leak'],
   burst: ['leak'],
   'co-pay': ['copay'],
@@ -85,13 +89,18 @@ export function expandTerms(input: string | string[]): string[] {
   return [...terms];
 }
 
-function clauseScore(clause: Clause, terms: string[]): number {
-  let score = 0;
-  const hay = norm(`${clause.title} ${clause.text}`);
+function topicHits(clause: Clause, terms: string[]): number {
+  let hits = 0;
   for (const topic of clause.topics) {
     const t = norm(topic);
-    if (terms.some((term) => term === t || (term.length > 4 && term.includes(t)) || (t.includes(' ') && terms.join(' ').includes(t)))) score += 3;
+    if (terms.some((term) => term === t || (term.length > 4 && term.includes(t)) || (t.includes(' ') && terms.join(' ').includes(t)))) hits += 1;
   }
+  return hits;
+}
+
+function clauseScore(clause: Clause, terms: string[]): number {
+  let score = topicHits(clause, terms) * 3;
+  const hay = norm(`${clause.title} ${clause.text}`);
   for (const term of terms) {
     if (term.length > 3 && !term.includes(' ') && hay.includes(term)) score += 1;
   }
@@ -100,7 +109,7 @@ function clauseScore(clause: Clause, terms: string[]): number {
 
 const INJECTION = /(ignore (all )?(previous|prior|above) instructions|system override|system prompt|you are now|disregard (the )?rules|reveal your|act as)[^.]*\.?/gi;
 
-/** Neutralise instruction-like text inside untrusted documents before the model sees it. */
+/** Neutralise instruction-like text inside untrusted documents before it reaches an answer. */
 export function sanitizeUntrusted(text: string): string {
   return text.replace(INJECTION, '[instruction-like text removed]');
 }
@@ -132,7 +141,7 @@ function money(p: Policy, n: number): string {
 
 // ---------- input schemas (validated before every tool run) ----------
 
-const categoryEnum = z.enum(['health', 'life', 'motor', 'travel', 'home', 'accident']);
+const categoryEnum = z.enum(ACTIVE_CATEGORIES);
 
 export const schemas = {
   searchPolicies: z.object({
@@ -202,27 +211,63 @@ export function searchPolicies(args: z.infer<typeof schemas.searchPolicies>) {
   };
 }
 
+const OVERVIEW_ORDER: Clause['type'][] = ['benefit', 'exclusion', 'waiting_period', 'limit', 'deductible', 'condition', 'claim_process'];
+
+/** Without topics: a balanced overview (taking clauses round-robin by type) so every kind of clause is represented. */
+function overview(p: Policy): Clause[] {
+  const byType = OVERVIEW_ORDER.map((t) => p.clauses.filter((c) => c.type === t));
+  const out: Clause[] = [];
+  for (let i = 0; out.length < 8 && byType.some((g) => g.length > i); i++) {
+    for (const g of byType) if (g[i] && out.length < 8) out.push(g[i]);
+  }
+  return out;
+}
+
 export function retrievePolicyEvidence(args: z.infer<typeof schemas.retrievePolicyEvidence>) {
   const p = policyById(args.policyId);
   if (!p) return { error: `Unknown policyId "${args.policyId}". Use searchPolicies to get valid IDs.` };
   const terms = expandTerms(args.topics);
-  let clauses = p.clauses
-    .map((c) => ({ c, s: args.topics.length ? clauseScore(c, terms) : 1 }))
-    .filter((x) => x.s > 0)
-    .sort((a, b) => b.s - a.s)
-    .slice(0, 8)
-    .map((x) => x.c);
+  let clauses = args.topics.length
+    ? p.clauses
+        .map((c) => ({ c, s: clauseScore(c, terms) }))
+        .filter((x) => x.s > 0)
+        .sort((a, b) => b.s - a.s)
+        .slice(0, 8)
+        .map((x) => x.c)
+    : overview(p);
   const notFound = clauses.length === 0;
   if (notFound) clauses = [];
   const docs = portfolio.documents
     .filter((d) => d.policyId === p.id && !d.trusted)
     .map((d) => ({ title: d.title, trusted: false, text: sanitizeUntrusted(d.text), warning: 'Untrusted user upload — not policy evidence.' }));
   return {
-    policy: { policyId: p.id, name: p.name, provider: p.provider, category: p.category, insured: p.insured, status: p.status, policyPeriod: `${p.startDate} to ${p.renewalDate}`, sumInsured: money(p, p.sumInsured) },
+    policy: { policyId: p.id, name: p.name, provider: p.provider, category: p.category, insured: p.insured, status: p.status, policyPeriod: `${p.startDate} to ${p.renewalDate}`, sumInsured: money(p, p.sumInsured), keyFacts: p.keyFacts },
     evidence: clauses.map((c) => toEvidence(p, c)),
     userUploadedDocuments: docs.length ? docs : undefined,
     note: notFound ? `No clause in ${p.name} mentions: ${args.topics.join(', ')}. Treat as not found in policy data, not as confirmed exclusion.` : undefined,
   };
+}
+
+const fmtDay = (iso: string) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+/**
+ * Checks a waiting period against the fixed demo date — but only when the sample wording itself
+ * states both the length and the date it is counted from. Otherwise it says what is missing.
+ */
+function waitingPeriodNote(c: EvidenceItem): string {
+  const length = c.text.match(/(\d+)\s*(months?|days?)/i);
+  const start = c.text.match(/(?:started|since|from)\s+(\d{4}-\d{2}-\d{2})/i)?.[1];
+  if (length && start) {
+    const end = new Date(start + 'T00:00:00Z');
+    if (/month/i.test(length[2])) end.setUTCMonth(end.getUTCMonth() + Number(length[1]));
+    else end.setUTCDate(end.getUTCDate() + Number(length[1]));
+    const endIso = end.toISOString().slice(0, 10);
+    return endIso <= DEMO_TODAY
+      ? `${c.title} (${c.section}): the ${length[1]}-${length[2].replace(/s$/, '')} wait counted from ${fmtDay(start)} ended on ${fmtDay(endIso)}, before the demo date of ${fmtDay(DEMO_TODAY)}. The insurer still confirms this at claim time.`
+      : `${c.title} (${c.section}): the ${length[1]}-${length[2].replace(/s$/, '')} wait counted from ${fmtDay(start)} ends on ${fmtDay(endIso)} — not yet completed at the demo date.`;
+  }
+  if (length) return `${c.title} (${c.section}): ${length[1]}-${length[2].replace(/s$/, '')} waiting period. The sample data doesn’t record when this cover started, so completion can’t be checked.`;
+  return `${c.title} (${c.section}): a waiting period applies. Completion can’t be checked from the sample data.`;
 }
 
 const PERSON_WORDS = ['father', 'mother', 'parents', 'spouse', 'wife', 'husband', 'son', 'daughter', 'child', 'self', 'me'];
@@ -260,7 +305,8 @@ export function evaluateCoverage(args: z.infer<typeof schemas.evaluateCoverage>)
     if (!p) { unknownIds.push(id); continue; }
     const scored = p.clauses.map((c) => ({ c, s: clauseScore(c, terms) })).filter((x) => x.s >= 3);
     const supporting = scored.filter((x) => x.c.type === 'benefit').map((x) => toEvidence(p, x.c));
-    const conflicting = scored.filter((x) => x.c.type === 'exclusion').map((x) => toEvidence(p, x.c));
+    // An exclusion only counts when its own topics match — not when the situation merely shares words with its text
+    const conflicting = scored.filter((x) => x.c.type === 'exclusion' && topicHits(x.c, terms) > 0).map((x) => toEvidence(p, x.c));
     const conditions = scored
       .filter((x) => ['limit', 'waiting_period', 'deductible', 'condition'].includes(x.c.type))
       .map((x) => toEvidence(p, x.c));
@@ -282,12 +328,22 @@ export function evaluateCoverage(args: z.infer<typeof schemas.evaluateCoverage>)
     } else if (conflicting.length) {
       status = 'Not found';
       reasoning = `Excluded under ${conflicting.map((s) => s.section).join(', ')}.`;
+    } else if (conditions.some((c) => c.type === 'limit' || c.type === 'deductible')) {
+      // e.g. a room upgrade: not a benefit by itself, but a limit decides what is paid
+      const lim = conditions.filter((c) => c.type === 'limit' || c.type === 'deductible');
+      status = 'Uncertain';
+      reasoning = `Not a benefit on its own, but ${lim.map((c) => `${c.title} (${c.section})`).join(', ')} applies. What is paid depends on the details.`;
+    } else if (conditions.some((c) => c.type === 'waiting_period')) {
+      // e.g. maternity: only described through a waiting period, so cover depends on time served
+      status = 'Uncertain';
+      reasoning = `Mentioned only with a waiting period (${conditions.filter((c) => c.type === 'waiting_period').map((c) => c.section).join(', ')}). Cover depends on whether it has been completed.`;
     } else {
       status = 'Not found';
       reasoning = 'No clause covers this situation.';
     }
     if (covered === undefined && person) unknowns.push(`Whether "${person}" is an insured member could not be confirmed`);
-    if (conditions.some((c) => c.type === 'waiting_period')) unknowns.push('Whether the relevant waiting period has been completed / whether the condition is pre-existing');
+    for (const c of conditions.filter((c) => c.type === 'waiting_period')) unknowns.push(waitingPeriodNote(c));
+    if (conditions.some((c) => c.type === 'waiting_period' && /pre-existing/i.test(c.title))) unknowns.push('Whether the condition is pre-existing and was declared when the policy was bought');
     if (p.status !== 'active') unknowns.push(`Policy status is "${p.status.replace('_', ' ')}" (renewal date ${p.renewalDate}) — check that the event date falls within the policy period`);
     unknowns.push('Final decision rests with the insurer after documents and assessment');
 
@@ -451,7 +507,7 @@ export function generateActionPlan(args: z.infer<typeof schemas.generateActionPl
     if (p.claimContact && !args.urgent) steps.push({ text: `Contact ${p.provider}`, detail: p.claimContact });
     if (p.status !== 'active') steps.push({ text: `Check ${p.name} validity — renews/expires ${p.renewalDate}`, detail: 'Make sure your dates fall within the policy period, or renew before you go.' });
   }
-  if (/travel|trip|japan|abroad|international|visa|flight/.test(t)) {
+  if (/travel|trip|japan|abroad|international|visa|flight/.test(t) && policies.some((p) => p.category === 'travel')) {
     steps.push({ text: 'Confirm your trip dates fall inside the travel policy period', detail: 'Annual policies only cover trips that start and end before expiry.' });
     steps.push({ text: 'Carry the policy certificate and the 24x7 assistance number', detail: 'Save them offline on your phone and in print.' });
     steps.push({ text: 'Check activities you plan against exclusions', detail: 'e.g. skiing or diving may be excluded.' });
@@ -459,7 +515,8 @@ export function generateActionPlan(args: z.infer<typeof schemas.generateActionPl
   if (/glass|windshield|windscreen|damage|dent|accident/.test(t) && policies.some((p) => p.category === 'motor')) {
     steps.push({ text: 'Take clear photos of the damage before any repair', detail: 'Do not repair before the insurer survey.' });
   }
-  steps.push({ text: 'Keep all bills and reports', detail: 'Needed for the claim.' });
+  if (policies.length && policies.every((p) => p.category === 'life')) steps.push({ text: 'Keep the policy document and nominee ID ready', detail: 'The nominee needs these to claim.' });
+  else steps.push({ text: 'Keep all bills and reports', detail: 'Needed for the claim.' });
   return {
     title: args.urgent ? 'Do this now' : 'Your next steps',
     urgent: args.urgent,

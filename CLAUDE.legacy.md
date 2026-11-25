@@ -1,3 +1,5 @@
+> **Historical document (hackathon era).** These were the original hackathon instructions. The Gemini API integration they describe has been **removed** for Mission 003 and is not part of the product: there is no Gemini SDK, no API key and no external AI provider. All answers now come from the local deterministic demo engine in `server/agent.ts`. The root `CLAUDE.md` takes precedence.
+
 # Policy SOS — Claude Code Project Instructions
 
 ## 1. Your role

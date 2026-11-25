@@ -129,8 +129,6 @@ export interface AgentStep {
 }
 
 export interface AgentAnswer {
-  mode: 'ai' | 'demo';
-  modeNote?: string;
   text: string;
   steps: AgentStep[];
   coverage: CoverageResult[];
@@ -139,14 +137,11 @@ export interface AgentAnswer {
   cost?: CostResult[];
   plan?: ActionPlan;
   safetyNotice?: string;
+  untrustedNotice?: string; // an untrusted document contained instruction-like text that was removed
+  suggestions?: string[]; // follow-up prompts the demo engine supports
 }
 
 export type StreamEvent =
   | { type: 'step'; step: AgentStep }
   | { type: 'final'; answer: AgentAnswer }
   | { type: 'error'; message: string };
-
-export interface ChatTurn {
-  role: 'user' | 'assistant';
-  text: string;
-}

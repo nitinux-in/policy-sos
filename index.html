@@ -3,10 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#FAF8F5" />
-    <title>Policy SOS</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <meta name="theme-color" content="#ffffff" />
+    <script>
+      // Light is the default. Apply a saved dark preference before first paint to avoid a flash.
+      try {
+        if (localStorage.getItem('dic-theme') === 'dark') {
+          document.documentElement.dataset.theme = 'dark';
+          document.querySelector('meta[name="theme-color"]').content = '#161a1f';
+        }
+      } catch (e) {}
+    </script>
+    <meta name="description" content="Ditto Insurance Companion — an unofficial design concept for understanding health and term life policies, using sample data." />
+    <title>Ditto Insurance Companion · Unofficial concept</title>
+    <link rel="preload" href="/fonts/Inter-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/Inter-SemiBold.woff2" as="font" type="font/woff2" crossorigin />
   </head>
   <body>
     <div id="root"></div>

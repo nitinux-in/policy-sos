@@ -1,59 +1,147 @@
 @import 'tailwindcss';
 
+/* Inter is the typeface of Ditto's live site (body and headings). Served locally — no font CDN. */
+@font-face { font-family: 'Inter'; src: url('/fonts/Inter-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('/fonts/Inter-Medium.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('/fonts/Inter-SemiBold.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('/fonts/Inter-Bold.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --color-canvas: #faf8f5;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  /* Surfaces */
+  --color-page: #f7f8fa;
   --color-surface: #ffffff;
-  --color-ink: #1c1b1f;
-  --color-ink-2: #55525c;
-  --color-ink-3: #8a8792;
-  --color-line: #ebe7e1;
-  --color-line-2: #f2efea;
-  --color-violet: #5b2eff;
-  --color-violet-2: #ede8ff;
-  --color-violet-ink: #3a17c7;
-  --color-ok: #127a4b;
-  --color-ok-bg: #e7f5ee;
-  --color-warn: #9a5b00;
-  --color-warn-bg: #fdf3e2;
+  --color-line: #e4e7eb;
+  --color-line-2: #eef1f4;
+
+  /* Text — near-black and blue-grey neutrals from Ditto's text tokens; all ≥ 4.5:1 on page and surface */
+  --color-ink: #17191c;
+  --color-ink-2: #364752;
+  --color-ink-3: #51636f;
+
+  /* Action blue: Ditto's primary link blue. White text on it is 4.6:1. */
+  --color-primary: #0871ea;
+  --color-primary-strong: #0663d0; /* hover / pressed fill */
+  --color-primary-tint: #e2f2ff;
+  --color-primary-ink: #0e4163;
+  --color-link: #0663d0; /* blue text and icons on page/surface backgrounds */
+
+  /* Chat bubble for the person's own messages */
+  --color-bubble: #17191c;
+  --color-bubble-ink: #ffffff;
+
+  /* Medical-urgency banner (white text on it is 6.4:1 in both themes) */
+  --color-urgent: #b42318;
+
+  /* Selective warm accent (Ditto's campaign yellow) — used once, for the companion prompt */
+  --color-sun: #ffe17a;
+  --color-sun-ink: #3d3000;
+
+  /* Status — restrained, never used as the action colour */
+  --color-ok: #137a4a;
+  --color-ok-bg: #e6f5ed;
+  --color-warn: #8a5000;
+  --color-warn-bg: #fff4dc;
   --color-bad: #b42318;
   --color-bad-bg: #fdecea;
+
+  /* Elevation — soft blue-grey shadows in the style of Ditto's card shadows */
+  --shadow-card: 0 1px 2px #8d9da81f, 0 1px 16px #8d9da814;
+  --shadow-float: 0 4px 28px #00000014, 0 1px 3px #8d9da82e;
+
+  --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-html,
-body,
-#root {
-  height: 100%;
+/* Dark theme: opt-in via the header toggle (light is the default). Same roles, re-tuned values; every
+   text pairing stays ≥ 4.5:1. The action blue is unchanged so white button text keeps its 4.6:1 contrast. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+    --color-page: #0e1114;
+    --color-surface: #161a1f;
+    --color-line: #2a3038;
+    --color-line-2: #1f242a;
+    --color-ink: #eef1f4;
+    --color-ink-2: #c1cad3;
+    --color-ink-3: #94a3b0;
+    --color-primary-tint: #11273f;
+    --color-primary-ink: #cfe4ff;
+    --color-link: #6cb0ff;
+    --color-bubble: #2b3644;
+    --color-bubble-ink: #eef1f4;
+    --color-sun: #3b3114;
+    --color-sun-ink: #f5dc8a;
+    --color-ok: #5ccf95;
+    --color-ok-bg: #10291d;
+    --color-warn: #f2b452;
+    --color-warn-bg: #33260f;
+    --color-bad: #ff8a80;
+    --color-bad-bg: #3b1715;
+    --shadow-card: 0 1px 2px #0000004d;
+    --shadow-float: 0 8px 32px #00000080, 0 1px 3px #0000004d;
+}
+
+html {
+  color-scheme: light;
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: 80px;
 }
 body {
   margin: 0;
-  background: #efebe5;
+  background: var(--color-page);
   color: var(--color-ink);
   font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
 }
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+h1, h2, h3 {
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
-.no-scrollbar {
-  scrollbar-width: none;
+
+/* One clear, consistent focus treatment for keyboard users (in the base layer, so utilities such as
+   outline-none on programmatically focused containers can still override it) */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+  .focus-ring-inset:focus-visible {
+    outline-offset: -2px;
+  }
 }
-.tnum {
-  font-variant-numeric: tabular-nums;
+
+.tnum { font-variant-numeric: tabular-nums; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+/* Motion: short, purposeful state transitions */
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes slide-in-right { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fade-up { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@utility animate-sheet { animation: sheet-up 0.26s var(--ease-out-soft); }
+@utility animate-drawer { animation: slide-in-right 0.22s var(--ease-out-soft); }
+@utility animate-in { animation: fade-up 0.2s ease-out both; }
+@utility animate-fade { animation: fade 0.18s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
-@keyframes sheet-up {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: none; }
-}
-.animate-sheet { animation: sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.animate-in { animation: fade-in 0.25s ease-out both; }
+
+/* Assistant answer text (rendered from the local engine's markdown templates) */
 .md p { margin: 0 0 0.5rem; }
 .md ul { margin: 0.25rem 0 0.5rem; padding-left: 1.1rem; list-style: disc; }
-.md li { margin: 0.2rem 0; }
+.md li { margin: 0.25rem 0; }
+.md li::marker { color: var(--color-ink-3); }
 .md strong { font-weight: 600; color: var(--color-ink); }
+.md em { color: var(--color-ink-3); }
 .md > :last-child { margin-bottom: 0; }

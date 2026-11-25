@@ -1,39 +1,36 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import {
-  AlertOctagon, ArrowUp, Car, Plane, Calculator, Check, CheckCircle2, ChevronDown, CircleHelp, FileSearch, ListChecks,
-  Loader2, RotateCcw, ShieldAlert, Sparkles, Table2, X, XCircle,
+  ArrowUp, Calculator, Check, CircleCheck, CircleHelp, CircleX, FileSearch, ListChecks, LoaderCircle,
+  MessageCircleQuestion, OctagonAlert, RotateCcw, ShieldAlert, Table2,
 } from 'lucide-react';
-import type { AgentAnswer, AgentStep, ChatTurn, CoverageStatus, PortfolioData } from '../shared/types';
+import type { AgentAnswer, AgentStep, CoverageStatus, PortfolioData } from '../shared/types';
 import { askAgent } from './lib';
+import { FEATURED } from './prompts';
+import { btn, CloseButton, Disclosure, Pill, useOverlay } from './ui';
+
+export const ASSISTANT_PANEL_ID = 'companion-panel';
 
 type Msg =
   | { id: number; role: 'user'; text: string }
   | { id: number; role: 'assistant'; answer: AgentAnswer }
   | { id: number; role: 'error'; text: string; retry: string };
 
-const SUGGESTIONS = [
-  { group: 'Emergency', short: 'Someone’s in hospital', icon: AlertOctagon, q: 'My father has been admitted after a cardiac emergency. Which policy can help, and what should I do?' },
-  { group: 'Check a claim', short: 'Cracked windshield', icon: Car, q: 'My car windshield cracked yesterday. Can I claim this, and will I have to pay anything?' },
-  { group: 'Before you travel', short: 'Japan next month', icon: Plane, q: "I'm travelling to Japan next month. What should I check?" },
-  { group: 'Compare cover', short: 'Your 2 health plans', icon: Table2, q: 'Compare my health policies' },
-];
-
 let nextId = 1;
 
-export function Assistant({ data, initialPrompt, onClose }: { data: PortfolioData; initialPrompt?: string; onClose: () => void }) {
+export function Assistant({ data, initialPrompt, docked, onClose }: { data: PortfolioData; initialPrompt?: string; docked: boolean; onClose: () => void }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [liveSteps, setLiveSteps] = useState<AgentStep[]>([]);
-  const [aiOn, setAiOn] = useState<boolean | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
   const reqId = useRef(0);
+  const first = data.user.name.split(' ')[0];
 
-  useEffect(() => {
-    fetch('/api/health').then((r) => r.json()).then((h) => setAiOn(!!h.ai)).catch(() => setAiOn(false));
-  }, []);
+  // Docked beside the dashboard on wide screens (non-modal); a full-screen dialog otherwise
+  useOverlay(panelRef, onClose, !docked, '[data-ask-trigger]');
 
   // Cancel any in-flight request when the panel closes
   useEffect(() => () => { reqId.current++; abortRef.current?.abort(); }, []);
@@ -50,21 +47,20 @@ export function Assistant({ data, initialPrompt, onClose }: { data: PortfolioDat
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    const smooth = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
     const last = msgs[msgs.length - 1];
     if (!busy && last?.role === 'assistant') {
       const q = el.querySelector<HTMLElement>('[data-last-question]');
-      if (q) { el.scrollTo({ top: q.offsetTop - 12, behavior: 'smooth' }); return; }
+      if (q) { el.scrollTo({ top: q.offsetTop - 12, behavior: smooth }); return; }
     }
-    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth });
   }, [msgs, liveSteps, busy]);
 
   const lastUserId = [...msgs].reverse().find((m) => m.role === 'user')?.id;
-
-  function history(): ChatTurn[] {
-    return msgs.flatMap((m): ChatTurn[] =>
-      m.role === 'user' ? [{ role: 'user', text: m.text }] : m.role === 'assistant' ? [{ role: 'assistant', text: m.answer.text }] : [],
-    );
-  }
+  // The untrusted-document note is shown once per conversation, not on every answer
+  const untrustedNoteId = msgs.find((m) => m.role === 'assistant' && m.answer.untrustedNotice)?.id;
+  const last = msgs[msgs.length - 1];
+  const status = busy ? 'Checking your sample policies…' : last?.role === 'assistant' ? 'Answer ready.' : last?.role === 'error' ? 'That didn’t go through.' : '';
 
   async function send(text: string) {
     const q = text.trim();
@@ -73,7 +69,6 @@ export function Assistant({ data, initialPrompt, onClose }: { data: PortfolioDat
       setMsgs((m) => [...m, { id: nextId++, role: 'error', text: 'That message is too long. Please keep it under 1,500 characters.', retry: '' }]);
       return;
     }
-    const hist = history();
     setMsgs((m) => [...m, { id: nextId++, role: 'user', text: q }]);
     setInput('');
     setBusy(true);
@@ -83,7 +78,7 @@ export function Assistant({ data, initialPrompt, onClose }: { data: PortfolioDat
     const my = ++reqId.current;
     const timer = setTimeout(() => ac.abort(), 90_000);
     try {
-      const answer = await askAgent(q, hist, (s) => my === reqId.current && setLiveSteps((prev) => [...prev, s]), ac.signal);
+      const answer = await askAgent(q, (s) => my === reqId.current && setLiveSteps((prev) => [...prev, s]), ac.signal);
       if (my !== reqId.current) return; // conversation was reset
       setMsgs((m) => [...m, { id: nextId++, role: 'assistant', answer }]);
     } catch (e) {
@@ -109,107 +104,123 @@ export function Assistant({ data, initialPrompt, onClose }: { data: PortfolioDat
   }
 
   return (
-    <div className="animate-sheet absolute inset-0 z-40 flex flex-col bg-canvas">
+    <section
+      ref={panelRef}
+      id={ASSISTANT_PANEL_ID}
+      role={docked ? 'region' : 'dialog'}
+      aria-modal={docked ? undefined : true}
+      aria-labelledby="companion-title"
+      tabIndex={-1}
+      className={`flex flex-col bg-surface outline-none ${
+        docked ? 'animate-drawer fixed bottom-0 right-0 top-16 z-20 w-[440px] border-l border-line' : 'animate-sheet fixed inset-0 z-50'
+      }`}
+    >
       {/* Header */}
-      <header className="flex items-center gap-3 border-b border-line px-4 pb-3 pt-[max(env(safe-area-inset-top),16px)]">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-violet text-white"><Sparkles size={18} /></span>
-        <div className="flex-1">
-          <p className="text-[15px] font-semibold leading-tight">Policy SOS</p>
-          <p className="flex items-center gap-1.5 text-[11.5px] text-ink-3">
-            <span className={`h-1.5 w-1.5 rounded-full ${aiOn ? 'bg-ok' : aiOn === false ? 'bg-warn' : 'bg-line'}`} />
-            {aiOn ? `Live · checks all ${data.policies.length} of your policies` : aiOn === false ? 'Offline mode · basic answers only' : 'Connecting…'}
-          </p>
+      <header className="flex items-center gap-3 border-b border-line py-2 pl-4 pr-2 pt-[max(env(safe-area-inset-top),8px)]">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-white" aria-hidden="true"><MessageCircleQuestion size={19} /></span>
+        <div className="min-w-0 flex-1">
+          <h2 id="companion-title" className="truncate text-[16px] font-semibold tracking-tight">Ask about your cover</h2>
+          <p className="truncate text-[12px] text-ink-3">Concept demo · {data.policies.length} sample health and term life policies</p>
         </div>
         {msgs.length > 0 && (
-          <button onClick={reset} className="flex items-center gap-1 rounded-full border border-line px-2.5 py-1.5 text-[12px] font-medium text-ink-2" aria-label="Start a new conversation">
-            <RotateCcw size={13} /> New
+          <button type="button" onClick={reset} aria-label="Start a new chat" className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-ink-2 hover:bg-line-2">
+            <RotateCcw size={15} aria-hidden="true" /> <span className="hidden sm:inline">New chat</span>
           </button>
         )}
-        <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full bg-line-2 text-ink-2" aria-label="Close assistant"><X size={16} /></button>
+        <CloseButton onClick={onClose} label="Close the companion" />
       </header>
 
       {/* Conversation */}
-      <div ref={scrollRef} className="no-scrollbar relative flex-1 space-y-4 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="@container relative flex-1 space-y-4 overflow-y-auto overscroll-contain bg-page px-4 py-5">
         {msgs.length === 0 && !busy && (
-          <div className="animate-in pt-6">
-            <p className="text-[13px] text-ink-3">Hi {data.user.name.split(' ')[0]} 👋</p>
-            <p className="mt-1 text-[30px] font-semibold leading-[1.1] tracking-tight">
-              What do you need <span className="text-violet">covered?</span>
-            </p>
-            <p className="mt-2 text-[14px] text-ink-2">Straight answers from your {data.policies.length} policies — with the clause to back them.</p>
-            <div className="mt-6 grid grid-cols-2 gap-2.5">
-              {SUGGESTIONS.slice(0, 4).map((s) => {
-                const Icon = s.icon;
-                return (
-                  <button key={s.q} onClick={() => send(s.q)} className="flex aspect-square flex-col justify-between rounded-3xl bg-surface p-4 text-left shadow-[0_1px_0_rgba(0,0,0,0.04)] active:scale-[0.98]">
-                    <span className={`grid h-9 w-9 place-items-center rounded-full ${s.group === 'Emergency' ? 'bg-bad-bg text-bad' : 'bg-violet-2 text-violet'}`}><Icon size={17} /></span>
+          <div className="animate-in">
+            <p className="text-[14px] text-ink-3">Hi {first}</p>
+            <h3 className="mt-1 text-[24px] font-bold">What would you like to check?</h3>
+            <p className="mt-2 text-[15px] text-ink-2">Answers come from your sample health and term life policies, with the clause that supports them.</p>
+            <ul className="mt-5 grid grid-cols-2 gap-3">
+              {FEATURED.map((s) => (
+                <li key={s.q} className="flex">
+                  <button
+                    type="button"
+                    onClick={() => send(s.q)}
+                    aria-label={`${s.title}: ${s.q}`}
+                    className="flex min-h-[136px] w-full flex-col justify-between gap-3 rounded-2xl border border-line bg-surface p-4 text-left shadow-card transition-colors hover:border-primary"
+                  >
+                    <span className={`grid h-10 w-10 place-items-center rounded-full ${s.urgent ? 'bg-bad-bg text-bad' : 'bg-primary-tint text-link'}`} aria-hidden="true">
+                      <s.icon size={19} />
+                    </span>
                     <span>
-                      <span className="block text-[15px] font-semibold">{s.group}</span>
-                      <span className="mt-0.5 block text-[12px] leading-snug text-ink-3">{s.short}</span>
+                      <span className="block text-[15px] font-semibold">{s.title}</span>
+                      <span className="mt-0.5 block text-[13px] leading-snug text-ink-3">{s.hint}</span>
                     </span>
                   </button>
-                );
-              })}
-            </div>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
         {msgs.map((m) =>
           m.role === 'user' ? (
             <div key={m.id} className="flex justify-end" {...(m.id === lastUserId ? { 'data-last-question': '' } : {})}>
-              <p className="max-w-[85%] rounded-2xl rounded-br-md bg-ink px-3.5 py-2.5 text-[14px] text-white">{m.text}</p>
+              <p className="max-w-[85%] rounded-2xl rounded-br-md bg-bubble px-4 py-2.5 text-[15px] text-bubble-ink">{m.text}</p>
             </div>
           ) : m.role === 'error' ? (
-            <div key={m.id} className="rounded-2xl border border-bad/20 bg-bad-bg p-3.5 text-[13px]">
-              <p className="font-semibold text-bad">That didn't go through</p>
+            <div key={m.id} className="rounded-2xl border border-bad/25 bg-bad-bg p-4 text-[14px]" role="alert">
+              <p className="font-semibold text-bad">That didn’t go through</p>
               <p className="mt-0.5 text-ink-2">{m.text}</p>
-              {m.retry && <button onClick={() => send(m.retry)} className="mt-2 rounded-full bg-ink px-3 py-1.5 text-[12px] font-medium text-white">Try again</button>}
+              {m.retry && <button type="button" onClick={() => send(m.retry)} className={`${btn.secondary} mt-3`}>Try again</button>}
             </div>
           ) : (
-            <AnswerView key={m.id} a={m.answer} />
+            <AnswerView key={m.id} a={m.answer} onAsk={send} busy={busy} showUntrusted={m.id === untrustedNoteId} />
           ),
         )}
 
         {busy && <LiveActivity steps={liveSteps} />}
       </div>
+      <p className="sr-only" aria-live="polite">{status}</p>
 
       {/* Composer */}
       <form
         onSubmit={(e) => { e.preventDefault(); send(input); }}
-        className="border-t border-line bg-canvas px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-3"
+        className="border-t border-line bg-surface px-3 pb-[max(env(safe-area-inset-bottom),12px)] pt-3"
       >
-        <div className="flex items-end gap-2 rounded-2xl border border-line bg-surface p-1.5 pl-3.5 focus-within:border-violet/50">
+        <label htmlFor="companion-input" className="sr-only">Your question</label>
+        <div className="flex items-end gap-2 rounded-2xl border border-line bg-surface p-1.5 pl-4 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
           <textarea
+            id="companion-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); } }}
             rows={1}
             maxLength={1500}
-            placeholder="Describe what happened…"
-            className="max-h-28 flex-1 resize-none bg-transparent py-2 text-[14.5px] outline-none placeholder:text-ink-3"
-            aria-label="Message"
+            placeholder="Ask about a situation or a policy…"
+            className="max-h-28 min-h-11 flex-1 resize-none bg-transparent py-2.5 text-[15px] placeholder:text-ink-3 focus-visible:outline-none"
           />
-          <button type="submit" disabled={!input.trim() || busy} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet text-white disabled:bg-line disabled:text-ink-3" aria-label="Send">
-            {busy ? <Loader2 size={17} className="animate-spin" /> : <ArrowUp size={18} />}
+          <button type="submit" disabled={!input.trim() || busy} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary text-white transition-colors hover:bg-primary-strong disabled:bg-line disabled:text-ink-3" aria-label="Send question">
+            {busy ? <LoaderCircle size={18} className="animate-spin" aria-hidden="true" /> : <ArrowUp size={19} aria-hidden="true" />}
           </button>
         </div>
-        <p className="mt-2 text-center text-[10.5px] text-ink-3">Guidance only · your insurer makes the final call on claims</p>
+        <p className="mt-2 text-center text-[12px] leading-snug text-ink-3">
+          Concept demo · answers come from local rules over sample policy data, not a live AI. Your insurer makes the final call.
+        </p>
       </form>
-    </div>
+    </section>
   );
 }
 
-// ---------- live activity ----------
+// ---------- live activity (real local tool steps as they run) ----------
 
 function LiveActivity({ steps }: { steps: AgentStep[] }) {
   return (
-    <div className="animate-in rounded-2xl border border-line bg-surface p-3.5">
-      <p className="flex items-center gap-2 text-[13px] font-semibold"><Loader2 size={15} className="animate-spin text-violet" /> Checking your policies</p>
+    <div className="animate-in rounded-2xl border border-line bg-surface p-4">
+      <p className="flex items-center gap-2 text-[14px] font-semibold">
+        <LoaderCircle size={16} className="animate-spin text-primary" aria-hidden="true" /> Checking your sample policies
+      </p>
       <ul className="mt-2 space-y-1.5">
-        {steps.length === 0 && <li className="text-[12.5px] text-ink-3">Reading your question…</li>}
         {steps.map((s, i) => (
-          <li key={i} className="animate-in flex items-start gap-2 text-[12.5px]">
-            {s.ok ? <Check size={14} className="mt-0.5 text-ok" /> : <XCircle size={14} className="mt-0.5 text-warn" />}
+          <li key={i} className="flex items-start gap-2 text-[13px]">
+            {s.ok ? <Check size={15} className="mt-0.5 shrink-0 text-ok" aria-hidden="true" /> : <CircleX size={15} className="mt-0.5 shrink-0 text-warn" aria-hidden="true" />}
             <span><span className="font-medium">{s.label}</span>{s.detail && <span className="text-ink-3"> — {s.detail}</span>}</span>
           </li>
         ))}
@@ -220,178 +231,210 @@ function LiveActivity({ steps }: { steps: AgentStep[] }) {
 
 // ---------- answer ----------
 
-const STATUS: Record<CoverageStatus, { cls: string; icon: typeof CheckCircle2; label: string }> = {
-  Supported: { cls: 'bg-ok-bg text-ok', icon: CheckCircle2, label: 'Supported by policy' },
+const STATUS: Record<CoverageStatus, { cls: string; icon: typeof CircleCheck; label: string }> = {
+  Supported: { cls: 'bg-ok-bg text-ok', icon: CircleCheck, label: 'Supported' },
   Uncertain: { cls: 'bg-warn-bg text-warn', icon: CircleHelp, label: 'Uncertain' },
-  'Not found': { cls: 'bg-line-2 text-ink-2', icon: XCircle, label: 'Not found in policy' },
+  'Not found': { cls: 'bg-line-2 text-ink-2', icon: CircleX, label: 'Not found' },
 };
 
-function AnswerView({ a }: { a: AgentAnswer }) {
+const block = 'rounded-2xl border border-line bg-surface p-4';
+
+function AnswerView({ a, onAsk, busy, showUntrusted }: { a: AgentAnswer; onAsk: (q: string) => void; busy: boolean; showUntrusted: boolean }) {
+  const coverage = a.coverage.some((c) => c.status !== 'Not found') ? a.coverage.filter((c) => c.status !== 'Not found') : a.coverage;
   return (
-    <div className="animate-in space-y-2.5">
+    <article className="animate-in space-y-3" aria-label="Answer">
       {a.safetyNotice && (
-        <div className={`flex gap-2.5 rounded-2xl p-3.5 text-[13px] ${a.safetyNotice.includes('112') ? 'bg-bad text-white' : 'border border-warn/20 bg-warn-bg text-ink'}`}>
-          {a.safetyNotice.includes('112') ? <AlertOctagon size={18} className="shrink-0" /> : <ShieldAlert size={18} className="shrink-0 text-warn" />}
-          <p className="font-medium">{a.safetyNotice}</p>
+        <div className="flex items-center gap-2.5 rounded-2xl bg-urgent p-4 text-[15px] font-semibold text-white" role="alert">
+          <OctagonAlert size={20} className="shrink-0" aria-hidden="true" />
+          <p>{a.safetyNotice}</p>
         </div>
       )}
 
-      <div className="rounded-2xl border border-line bg-surface p-3.5">
-        {a.mode === 'demo' && (
-          <p className="mb-2 inline-flex rounded-full bg-warn-bg px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-warn" title={a.modeNote}>Offline demo mode · not AI</p>
-        )}
-        <div className="md text-[14px] leading-relaxed text-ink-2">
+      <div className={block}>
+        <div className="md text-[15px] leading-relaxed text-ink-2">
           <ReactMarkdown>{a.text}</ReactMarkdown>
         </div>
-        {a.mode === 'demo' && a.modeNote && <p className="mt-2 text-[11px] text-ink-3">{a.modeNote}</p>}
+        {a.suggestions && a.suggestions.length > 0 && (
+          <ul className="mt-3 space-y-2">
+            {a.suggestions.map((q) => (
+              <li key={q}>
+                <button type="button" onClick={() => onAsk(q)} disabled={busy} className="w-full rounded-xl border border-line px-3.5 py-2.5 text-left text-[14px] font-medium text-ink transition-colors hover:border-primary hover:bg-primary-tint disabled:text-ink-3">
+                  {q}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
-      {(a.coverage.some((c) => c.status !== 'Not found') ? a.coverage.filter((c) => c.status !== 'Not found') : a.coverage).map((c) => {
+      {coverage.map((c) => {
         const S = STATUS[c.status];
         return (
-          <div key={c.policyId} className="rounded-2xl border border-line bg-surface p-3.5">
-            <div className="flex items-center justify-between gap-2">
-              <p className="truncate text-[13.5px] font-semibold">{c.policyName}</p>
-              <span className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${S.cls}`}><S.icon size={13} />{c.status}</span>
+          <section key={c.policyId} className={block} aria-label={`Coverage under ${c.policyName}`}>
+            <div className="flex items-start justify-between gap-3">
+              <h4 className="font-semibold">{c.policyName}</h4>
+              <Pill className={`${S.cls} font-semibold`}><S.icon size={14} aria-hidden="true" />{S.label}</Pill>
             </div>
-            <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-2">{c.reasoning}</p>
+            <p className="mt-1.5 text-[14px] leading-relaxed text-ink-2">{c.reasoning}</p>
             {c.unknowns.length > 0 && (
-              <Expander label={`What's not verified (${c.unknowns.length})`} icon={CircleHelp}>
-                <ul className="space-y-1 text-[12.5px] text-ink-2">{c.unknowns.map((u) => <li key={u}>• {u}</li>)}</ul>
-              </Expander>
+              <Disclosure className="mt-2" buttonClassName="min-h-11 rounded-lg" summary={<span className="flex items-center gap-1.5 text-[14px] font-medium text-ink-2"><CircleHelp size={15} className="text-ink-3" aria-hidden="true" />What isn’t verified ({c.unknowns.length})</span>}>
+                <ul className="list-disc space-y-1 pl-5 text-[14px] text-ink-2">{c.unknowns.map((u) => <li key={u}>{u}</li>)}</ul>
+              </Disclosure>
             )}
-          </div>
+          </section>
         );
       })}
 
       {a.cost?.map((c) => (
-        <div key={c.policyId} className="rounded-2xl border border-line bg-surface p-3.5">
-          <p className="flex items-center gap-2 text-[13.5px] font-semibold"><Calculator size={15} className="text-violet" /> Cost estimate · {c.policyName}</p>
+        <section key={c.policyId} className={block} aria-label={`Cost estimate for ${c.policyName}`}>
+          <h4 className="flex items-center gap-2 font-semibold"><Calculator size={17} className="text-link" aria-hidden="true" /> Cost estimate · {c.policyName}</h4>
           {c.sufficientData ? (
             <>
-              <div className="tnum mt-2.5 grid grid-cols-2 gap-2">
-                <div className="rounded-xl bg-violet-2 p-2.5"><p className="text-[11px] text-violet-ink">You may pay</p><p className="text-[18px] font-semibold text-violet-ink">{c.currency}{(c.estimatedOutOfPocket ?? 0).toLocaleString('en-IN')}</p></div>
-                <div className="rounded-xl bg-line-2 p-2.5"><p className="text-[11px] text-ink-3">Insurer may pay</p><p className="text-[18px] font-semibold">{c.currency}{(c.estimatedInsurerShare ?? 0).toLocaleString('en-IN')}</p></div>
+              <div className="tnum mt-3 grid grid-cols-2 gap-2">
+                <div className="rounded-xl bg-primary-tint p-3"><p className="text-[13px] text-primary-ink">You may pay</p><p className="text-[20px] font-bold text-primary-ink">{c.currency}{(c.estimatedOutOfPocket ?? 0).toLocaleString('en-IN')}</p></div>
+                <div className="rounded-xl bg-page p-3"><p className="text-[13px] text-ink-3">Insurer may pay</p><p className="text-[20px] font-bold">{c.currency}{(c.estimatedInsurerShare ?? 0).toLocaleString('en-IN')}</p></div>
               </div>
-              <ul className="tnum mt-2.5 space-y-1 text-[12.5px]">
-                {c.inputs.map((i) => <li key={i.label} className="flex justify-between"><span className="text-ink-3">{i.label}</span><span>{i.value}</span></li>)}
-                {c.lines.map((l) => <li key={l.label} className="flex justify-between"><span className="text-ink-3">{l.label}</span><span>− {c.currency}{l.amount.toLocaleString('en-IN')}</span></li>)}
-              </ul>
+              <dl className="tnum mt-3 space-y-1.5 text-[14px]">
+                {c.inputs.map((i) => <div key={i.label} className="flex justify-between gap-3"><dt className="text-ink-3">{i.label}</dt><dd>{i.value}</dd></div>)}
+                {c.lines.map((l) => <div key={l.label} className="flex justify-between gap-3"><dt className="text-ink-3">{l.label}</dt><dd className="whitespace-nowrap">− {c.currency}{l.amount.toLocaleString('en-IN')}</dd></div>)}
+              </dl>
             </>
           ) : (
-            <p className="mt-1.5 text-[12.5px] text-ink-2">Not enough information for an estimate yet. Needed: <span className="font-medium text-ink">{c.missing.join('; ')}</span>.</p>
+            <p className="mt-1.5 text-[14px] text-ink-2">Not enough information for an estimate yet. Needed: <span className="font-medium text-ink">{c.missing.join('; ')}</span>.</p>
           )}
           {c.assumptions.length > 0 && (
-            <Expander label={c.sufficientData ? 'Assumptions' : 'What the policy already tells us'} icon={CircleHelp}>
-              <ul className="space-y-1 text-[12.5px] text-ink-2">{c.assumptions.map((x) => <li key={x}>• {x}</li>)}</ul>
-            </Expander>
+            <Disclosure className="mt-2" buttonClassName="min-h-11 rounded-lg" summary={<span className="text-[14px] font-medium text-ink-2">{c.sufficientData ? 'Assumptions' : 'What the policy already tells us'}</span>}>
+              <ul className="list-disc space-y-1 pl-5 text-[14px] text-ink-2">{c.assumptions.map((x) => <li key={x}>{x}</li>)}</ul>
+            </Disclosure>
           )}
-        </div>
+        </section>
       ))}
 
-      {a.comparison && (
-        <div className="rounded-2xl border border-line bg-surface p-3.5">
-          <p className="flex items-center gap-2 text-[13.5px] font-semibold"><Table2 size={15} className="text-violet" /> Side-by-side</p>
-          <div className="mt-2.5 space-y-2.5">
-            {a.comparison.rows.map((r) => (
-              <div key={r.criterion} className="border-t border-line-2 pt-2.5 first:border-0 first:pt-0">
-                <p className="text-[11.5px] font-semibold uppercase tracking-wide text-ink-3">{r.criterion}</p>
-                <div className="mt-1 grid grid-cols-2 gap-2">
-                  {r.values.map((v) => {
-                    const pol = a.comparison!.policies.find((x) => x.policyId === v.policyId);
-                    return (
-                      <div key={v.policyId}>
-                        <p className="text-[10.5px] text-ink-3">{pol?.policyName}</p>
-                        <p className={`text-[12.5px] leading-snug ${v.value.startsWith('Not specified') ? 'italic text-ink-3' : ''}`}>{v.value}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-          {a.comparison.notes.map((n) => <p key={n} className="mt-2.5 text-[11.5px] text-ink-3">{n}</p>)}
-        </div>
-      )}
+      {a.comparison && <ComparisonView c={a.comparison} />}
 
       {a.plan && <PlanCard plan={a.plan} />}
 
       {a.evidence.length > 0 && (
-        <div className="rounded-2xl border border-line bg-surface px-3.5 py-1.5">
-          <Expander label={`Policy evidence · ${Math.min(a.evidence.length, 5)} clauses`} icon={FileSearch}>
-          <div className="space-y-1.5 pb-1.5">
-            {a.evidence.slice(0, 5).map((e) => (
-              <Expander key={e.clauseId} label={`${e.title} · ${e.section}`} tag={e.type.replace('_', ' ')} boxed>
-                <p className="text-[12.5px] leading-relaxed text-ink">“{e.text}”</p>
-                <p className="mt-1.5 text-[11px] text-ink-3">Source: {e.source}</p>
-              </Expander>
+        <Disclosure
+          className={`${block} py-1`}
+          buttonClassName="min-h-12 rounded-xl"
+          summary={<span className="flex items-center gap-2 text-[14px] font-semibold"><FileSearch size={17} className="text-ink-3" aria-hidden="true" />Policy evidence · {a.evidence.length} {a.evidence.length === 1 ? 'clause' : 'clauses'}</span>}
+        >
+          <ul className="space-y-3 pb-3 pt-1">
+            {a.evidence.map((e) => (
+              <li key={e.clauseId} className="rounded-xl bg-page p-3.5">
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] font-semibold">
+                  {e.title}
+                  <span className="text-[13px] font-normal text-ink-3">{e.section}</span>
+                  <Pill className="bg-surface text-ink-3">{e.type.replace('_', ' ')}</Pill>
+                </p>
+                <blockquote className="mt-1.5 border-l-2 border-line pl-3 text-[14px] leading-relaxed text-ink">{e.text}</blockquote>
+                <p className="mt-1.5 text-[12px] text-ink-3">Source: {e.source}</p>
+              </li>
             ))}
-          </div>
-          </Expander>
-        </div>
+          </ul>
+        </Disclosure>
+      )}
+
+      {showUntrusted && a.untrustedNotice && (
+        <p className="flex gap-2 rounded-2xl border border-warn/20 bg-warn-bg p-3.5 text-[13px] text-ink-2">
+          <ShieldAlert size={16} className="mt-0.5 shrink-0 text-warn" aria-hidden="true" />{a.untrustedNotice}
+        </p>
       )}
 
       {a.steps.length > 0 && (
-        <Expander label={`How I worked this out · ${a.steps.length} steps`} icon={ListChecks}>
-          <ol className="space-y-1 text-[12.5px]">
+        <Disclosure buttonClassName="min-h-11 rounded-lg px-1" summary={<span className="flex items-center gap-1.5 text-[13px] font-medium text-ink-3"><ListChecks size={15} aria-hidden="true" />How this answer was built · {a.steps.length} local {a.steps.length === 1 ? 'step' : 'steps'}</span>}>
+          <ol className="space-y-1 px-1 pb-1 text-[13px]">
             {a.steps.map((s, i) => (
               <li key={i} className="flex gap-2">
                 <span className="tnum text-ink-3">{i + 1}.</span>
-                <span><span className="font-medium">{s.label}</span> <code className="rounded bg-line-2 px-1 text-[10.5px] text-ink-3">{s.tool}</code>{s.detail && <span className="text-ink-3"> — {s.detail}</span>}</span>
+                <span><span className="font-medium">{s.label}</span> <code className="rounded bg-line-2 px-1 text-[12px] text-ink-3">{s.tool}</code>{s.detail && <span className="text-ink-3"> — {s.detail}</span>}</span>
               </li>
             ))}
           </ol>
-        </Expander>
+        </Disclosure>
       )}
-    </div>
+    </article>
+  );
+}
+
+function ComparisonView({ c }: { c: NonNullable<AgentAnswer['comparison']> }) {
+  const name = (id: string) => c.policies.find((x) => x.policyId === id)?.policyName ?? id;
+  const notSpecified = (v: string) => v.startsWith('Not specified');
+  return (
+    <section className={block} aria-label="Policy comparison">
+      <h4 className="flex items-center gap-2 font-semibold"><Table2 size={17} className="text-link" aria-hidden="true" /> Side by side</h4>
+
+      {/* Wide containers: a real table */}
+      <div className="mt-3 hidden overflow-x-auto @lg:block">
+        <table className="w-full border-collapse text-left text-[14px]">
+          <caption className="sr-only">Comparison of {c.policies.map((p) => p.policyName).join(' and ')}</caption>
+          <thead>
+            <tr className="border-b border-line">
+              <th scope="col" className="w-[22%] py-2 pr-3 text-[13px] font-semibold text-ink-3">Criterion</th>
+              {c.policies.map((p) => <th key={p.policyId} scope="col" className="py-2 pr-3 text-[13px] font-semibold">{p.policyName}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {c.rows.map((r) => (
+              <tr key={r.criterion} className="border-b border-line-2 align-top last:border-0">
+                <th scope="row" className="py-2.5 pr-3 text-[13px] font-semibold text-ink-2">{r.criterion}</th>
+                {r.values.map((v) => <td key={v.policyId} className={`py-2.5 pr-3 leading-snug ${notSpecified(v.value) ? 'italic text-ink-3' : ''}`}>{v.value}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Narrow containers: stacked rows */}
+      <dl className="mt-3 space-y-3 @lg:hidden">
+        {c.rows.map((r) => (
+          <div key={r.criterion} className="border-t border-line-2 pt-3 first:border-0 first:pt-0">
+            <dt className="text-[13px] font-semibold text-ink-3">{r.criterion}</dt>
+            {r.values.map((v) => (
+              <dd key={v.policyId} className="mt-1.5">
+                <span className="block text-[12px] font-medium text-ink-3">{name(v.policyId)}</span>
+                <span className={`block text-[14px] leading-snug ${notSpecified(v.value) ? 'italic text-ink-3' : ''}`}>{v.value}</span>
+              </dd>
+            ))}
+          </div>
+        ))}
+      </dl>
+      {c.notes.map((n) => <p key={n} className="mt-3 text-[13px] text-ink-3">{n}</p>)}
+    </section>
   );
 }
 
 function PlanCard({ plan }: { plan: NonNullable<AgentAnswer['plan']> }) {
   const [done, setDone] = useState<Set<number>>(new Set());
+  const headingId = useId();
   return (
-    <div className={`rounded-2xl border p-3.5 ${plan.urgent ? 'border-bad/25 bg-surface' : 'border-line bg-surface'}`}>
-      <div className="flex items-center justify-between">
-        <p className="flex items-center gap-2 text-[13.5px] font-semibold"><ListChecks size={15} className={plan.urgent ? 'text-bad' : 'text-violet'} /> {plan.title}</p>
-        <span className="tnum text-[11.5px] text-ink-3">{done.size}/{Math.min(plan.steps.length, 5)}</span>
+    <section className={`rounded-2xl border bg-surface p-4 ${plan.urgent ? 'border-bad/30' : 'border-line'}`} aria-labelledby={headingId}>
+      <div className="flex items-center justify-between gap-3">
+        <h4 id={headingId} className="flex items-center gap-2 font-semibold"><ListChecks size={17} className={plan.urgent ? 'text-bad' : 'text-link'} aria-hidden="true" /> {plan.title}</h4>
+        <span className="tnum text-[13px] text-ink-3">{done.size} of {plan.steps.length} done</span>
       </div>
       <ul className="mt-2 space-y-1">
-        {plan.steps.slice(0, 5).map((s, i) => {
+        {plan.steps.map((s, i) => {
           const on = done.has(i);
           return (
             <li key={i}>
-              <button
-                onClick={() => setDone((d) => { const n = new Set(d); if (on) n.delete(i); else n.add(i); return n; })}
-                className="flex w-full gap-2.5 rounded-lg p-1.5 text-left active:bg-line-2"
-                aria-pressed={on}
-              >
-                <span className={`mt-0.5 grid h-[18px] w-[18px] shrink-0 place-items-center rounded-md border ${on ? 'border-violet bg-violet text-white' : 'border-ink/20'}`}>{on && <Check size={12} />}</span>
+              <label className="flex cursor-pointer gap-3 rounded-xl p-2 hover:bg-page">
+                <input
+                  type="checkbox"
+                  checked={on}
+                  onChange={() => setDone((d) => { const n = new Set(d); if (on) n.delete(i); else n.add(i); return n; })}
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-primary"
+                />
                 <span className="min-w-0">
-                  <span className={`block text-[13px] font-medium ${on ? 'text-ink-3 line-through' : ''}`}>{s.text}</span>
-                  {s.detail && <span className="mt-0.5 block truncate text-[12px] leading-snug text-ink-3">{s.detail}</span>}
+                  <span className={`block text-[14px] font-medium ${on ? 'text-ink-3 line-through' : ''}`}>{s.text}</span>
+                  {s.detail && <span className="mt-0.5 block text-[13px] leading-snug text-ink-3">{s.detail}</span>}
                 </span>
-              </button>
+              </label>
             </li>
           );
         })}
       </ul>
-    </div>
-  );
-}
-
-function Expander({ label, children, icon: Icon, tag, boxed }: { label: string; children: React.ReactNode; icon?: typeof ListChecks; tag?: string; boxed?: boolean }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className={boxed ? 'rounded-xl border border-line-2 bg-canvas' : 'mt-2'}>
-      <button onClick={() => setOpen(!open)} className={`flex w-full items-center justify-between gap-2 text-left ${boxed ? 'px-3 py-2' : 'py-1'}`} aria-expanded={open}>
-        <span className="flex min-w-0 items-center gap-1.5 text-[12.5px] font-medium text-ink-2">
-          {Icon && <Icon size={14} className="shrink-0 text-ink-3" />}
-          <span className="truncate">{label}</span>
-          {tag && <span className="shrink-0 rounded bg-line-2 px-1.5 py-px text-[10px] font-semibold uppercase text-ink-3">{tag}</span>}
-        </span>
-        <ChevronDown size={14} className={`shrink-0 text-ink-3 transition ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && <div className={boxed ? 'border-t border-line-2 px-3 py-2.5' : 'pb-1 pt-1'}>{children}</div>}
-    </div>
+    </section>
   );
 }

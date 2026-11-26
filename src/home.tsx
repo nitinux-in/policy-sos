@@ -28,7 +28,6 @@ const covers = (p: Policy) => {
   const nominee = p.keyFacts.find((f) => f.label === 'Nominee')?.value;
   return nominee ? `Nominee: ${nominee}` : `Covers ${p.insured.length} ${p.insured.length === 1 ? 'person' : 'people'}`;
 };
-const today = new Date(DEMO_TODAY + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
 
 const viewAll = (label: string, onClick: () => void) => (
   <Button type="button" variant="ghost" size="sm" onClick={onClick} className="-mr-2 h-10 text-[13px] font-medium text-link hover:text-link">
@@ -49,13 +48,9 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
 
   return (
     <m.div initial="hidden" animate="show" variants={stagger(0.08)} className="space-y-4 pt-2 @4xl:pt-4">
-      <m.header variants={rise}>
-        <p className="text-[13px] text-muted-foreground">{today}</p>
-        <h1 tabIndex={-1} className="mt-0.5 text-[26px] font-medium tracking-tight outline-none @4xl:text-[34px]">Hello, {first}</h1>
-      </m.header>
 
       <m.div variants={rise} className="grid gap-4 @4xl:grid-cols-12">
-        <AskCard onAsk={onAsk} className="@4xl:col-span-8" />
+        <AskCard firstName={first} onAsk={onAsk} className="@4xl:col-span-8" />
         <NextRenewal policy={renewals[0]} onOpen={onOpenPolicy} className="hidden @4xl:col-span-4 @4xl:flex" />
       </m.div>
 
@@ -145,30 +140,32 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
  * The home page's way into the assistant, on a sky card. Phones: a compact card (avatar, title, search bar and
  * one swipeable row of quick questions). Wide screens: a larger hero with the full mascot.
  */
-function AskCard({ onAsk, className = '' }: { onAsk: (q?: string) => void; className?: string }) {
+function AskCard({ firstName, onAsk, className = '' }: { firstName: string; onAsk: (q?: string) => void; className?: string }) {
   const [q, setQ] = useState('');
   return (
     <section
       aria-labelledby="ask-card"
-      className={`relative min-w-0 overflow-hidden rounded-hero bg-gradient-to-br from-sky-from to-sky-to p-4 shadow-card @4xl:p-7 ${className}`}
+      className={`relative min-w-0 overflow-hidden rounded-hero bg-gradient-to-br from-sky-from to-sky-to p-4 shadow-card @4xl:px-6 @4xl:py-5 ${className}`}
     >
-      <Mascot className="animate-float absolute -bottom-3 right-2 hidden w-[190px] @4xl:block @6xl:w-[220px]" />
-      <div className="relative @4xl:max-w-[62%]">
+      <div className="pointer-events-none absolute right-6 top-1/2 hidden -translate-y-1/2 @4xl:block" aria-hidden="true">
+        <span className="animate-float block" style={{ animationIterationCount: 2 }}><Mascot className="w-[140px] @6xl:w-[156px]" /></span>
+      </div>
+      <div className="relative @4xl:max-w-[74%]">
         <div className="flex items-center gap-3 @4xl:block">
           <MascotAvatar className="size-10 ring-2 ring-card @4xl:hidden" />
           <div className="min-w-0">
-            <h2 id="ask-card" className="text-[16px] font-semibold leading-tight tracking-tight @4xl:text-[24px] @4xl:font-medium @6xl:text-[28px]">
-              <span className="@4xl:hidden">Ask Ditto Assistant</span>
-              <span className="hidden @4xl:inline">What would you like to check today?</span>
-            </h2>
-            <p className="mt-0.5 text-[13px] leading-snug text-ink-2 @4xl:mt-1 @4xl:text-[14px]">
+            <h1 id="ask-card" tabIndex={-1} className="text-[16px] font-semibold leading-tight outline-none @4xl:text-[22px] @4xl:font-medium">
+              <span className="@4xl:hidden">Hi {firstName}, what can I check?</span>
+              <span className="hidden @4xl:inline">Hi {firstName}, what would you like to check?</span>
+            </h1>
+            <p className="mt-0.5 text-[13px] leading-snug text-ink-2 @4xl:mt-1 @4xl:text-[13px]">
               <span className="@4xl:hidden">Answers quote your policy wording</span>
               <span className="hidden @4xl:inline">Ask about a situation or a policy — answers cite the policy wording.</span>
             </p>
           </div>
         </div>
         <form
-          className="mt-3 flex items-center gap-2 rounded-full bg-card p-1.5 pl-4 shadow-card transition-shadow focus-within:ring-2 focus-within:ring-ring @4xl:mt-5 @4xl:pl-2"
+          className="mt-3 flex items-center gap-2 rounded-full bg-card p-1.5 pl-4 shadow-card transition-shadow focus-within:ring-2 focus-within:ring-ring @4xl:mt-4 @4xl:pl-3"
           onSubmit={(e) => { e.preventDefault(); if (q.trim()) onAsk(q.trim()); }}
         >
           <Search className="hidden size-[18px] shrink-0 text-muted-foreground @4xl:block" aria-hidden="true" />
@@ -182,16 +179,16 @@ function AskCard({ onAsk, className = '' }: { onAsk: (q?: string) => void; class
             autoComplete="off"
             enterKeyHint="send"
             placeholder="Ask about your cover"
-            className="h-10 min-w-0 flex-1 border-0 bg-transparent px-0 text-[16px] shadow-none placeholder:text-muted-foreground focus-visible:ring-0 md:text-[15px] @4xl:h-11 @4xl:px-1 dark:bg-transparent"
+            className="h-10 min-w-0 flex-1 border-0 bg-transparent px-0 text-[16px] shadow-none placeholder:text-muted-foreground focus-visible:ring-0 md:text-[15px] @4xl:h-10 @4xl:px-1 dark:bg-transparent"
           />
-          <Button type="submit" size="icon" disabled={!q.trim()} aria-label="Ask" className={`${SEND_BUTTON} size-10 @4xl:size-11`}>
+          <Button type="submit" size="icon" disabled={!q.trim()} aria-label="Ask" className={`${SEND_BUTTON} size-10`}>
             <ArrowUp className="size-5" aria-hidden="true" />
           </Button>
         </form>
       </div>
-      {/* Phones: one swipeable row that runs to the card's edges and fades out there; wide screens: chips wrap */}
+      {/* One row of quick questions: swipeable, fading out at the edges */}
       <ul
-        className="no-scrollbar fade-x relative -mx-4 mt-3 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 py-1 @4xl:mx-0 @4xl:mt-4 @4xl:max-w-[62%] @4xl:flex-wrap @4xl:overflow-visible @4xl:px-0 @4xl:[-webkit-mask-image:none] @4xl:[mask-image:none]"
+        className="no-scrollbar fade-x relative -mx-4 mt-3 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 py-1 @4xl:-mx-1 @4xl:mt-3 @4xl:max-w-[74%] @4xl:px-1"
         aria-label="Quick questions"
       >
         {FEATURED.map((s) => (
@@ -200,10 +197,9 @@ function AskCard({ onAsk, className = '' }: { onAsk: (q?: string) => void; class
               type="button"
               onClick={() => onAsk(s.q)}
               aria-label={`${s.title}: ${s.q}`}
-              whileHover={{ y: -1 }}
               whileTap={{ scale: 0.95 }}
               transition={SPRING}
-              className="inline-flex h-9 items-center gap-1.5 rounded-full bg-card px-3.5 text-[13px] font-medium shadow-card transition-colors hover:bg-card @4xl:bg-card/80 @4xl:shadow-none"
+              className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full bg-card px-3.5 text-[13px] font-medium shadow-card transition-colors hover:bg-card @4xl:h-8 @4xl:px-3 @4xl:text-[12.5px] @4xl:bg-card/80 @4xl:shadow-none"
             >
               <s.icon className="size-[15px] text-link" aria-hidden="true" />
               {s.hint}
@@ -220,18 +216,18 @@ function NextRenewal({ policy: p, onOpen, className = '' }: { policy: Policy; on
   const left = daysUntil(p.renewalDate);
   const done = Math.min(100, Math.max(0, Math.round(((total - left) / total) * 100)));
   return (
-    <Card className={`${surface} min-w-0 flex-col justify-between gap-5 p-6 ${className}`}>
+    <Card className={`${surface} min-w-0 flex-col justify-between gap-3 px-5 py-5 ${className}`}>
       <div>
-        <p className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground"><CalendarClock className="size-4" aria-hidden="true" /> Next renewal</p>
-        <p className="mt-3 text-[30px] font-medium leading-none tracking-tight">{fmtDate(p.renewalDate)}</p>
-        <p className="mt-2 text-[14px] text-ink-2">{p.name} · {p.provider}</p>
+        <p className="flex items-center gap-2 text-[12px] font-medium text-muted-foreground"><CalendarClock className="size-3.5" aria-hidden="true" /> Next renewal</p>
+        <p className="mt-2 text-[22px] font-medium leading-none">{fmtDate(p.renewalDate)}</p>
+        <p className="mt-1.5 truncate text-[13px] text-ink-2" translate="no">{p.name} · {p.provider}</p>
       </div>
       <div>
         <div className="flex justify-between text-[12px] text-muted-foreground"><span>Policy year</span><span className="tnum">{left} days left</span></div>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${done}% of the policy year has passed`}>
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${done}% of the policy year has passed`}>
           <m.div className="h-full rounded-full bg-primary" initial={{ width: 0 }} animate={{ width: `${done}%` }} transition={{ duration: 0.9, ease: EASE, delay: 0.35 }} />
         </div>
-        <Button type="button" variant="outline" onClick={() => onOpen(p)} data-policy-id={p.id} className="mt-5 w-full bg-card">View policy</Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => onOpen(p)} data-policy-id={p.id} className="mt-3 h-9 w-full bg-card">View policy</Button>
       </div>
     </Card>
   );

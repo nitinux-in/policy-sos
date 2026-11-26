@@ -29,23 +29,33 @@ export type AskRequest = { q: string; n: number } | null;
 // ---------- URL ↔ state: every screen has an address, and Back closes what's open before leaving a screen ----------
 
 const PATH: Record<Tab, string> = { overview: '/', assistant: '/assistant', policies: '/policies', claims: '/claims', documents: '/documents' };
-const tabFromPath = (path: string): Tab => (Object.keys(PATH) as Tab[]).find((t) => PATH[t] === path.replace(/\/+$/, '') ) ?? 'overview';
-const policyFromUrl = () => new URLSearchParams(window.location.search).get('policy');
+/** Shareable build (one static page): screens switch by a plain #name; policies and the assistant stay in page state. */
+const STANDALONE = !!import.meta.env.VITE_STANDALONE;
+const currentPath = () => (STANDALONE ? '/' + window.location.hash.replace(/^#/, '') : window.location.pathname);
+const tabFromPath = (path: string): Tab => (Object.keys(PATH) as Tab[]).find((t) => PATH[t] === (path.replace(/\/+$/, '') || '/')) ?? 'overview';
+const policyFromUrl = () => (STANDALONE ? null : new URLSearchParams(window.location.search).get('policy'));
 type HistState = { app: true; idx: number };
-const histIdx = () => ((window.history.state as HistState | null)?.app ? (window.history.state as HistState).idx : 0);
-function push(url: string) { window.history.pushState({ app: true, idx: histIdx() + 1 } satisfies HistState, '', url); }
-function replace(url: string) { window.history.replaceState({ app: true, idx: histIdx() } satisfies HistState, '', url); }
+const histIdx = () => (STANDALONE ? 0 : (window.history.state as HistState | null)?.app ? (window.history.state as HistState).idx : 0);
+const toHash = (url: string) => url.split('?')[0].replace(/^\//, '');
+function setHash(url: string) {
+  const name = toHash(url);
+  if (window.location.hash.replace(/^#/, '') === name) return;
+  if (name) window.location.hash = name;
+  else window.history.replaceState(null, '', window.location.pathname + window.location.search);
+}
+function push(url: string) { if (STANDALONE) { if (!url.includes('?')) setHash(url); return; } window.history.pushState({ app: true, idx: histIdx() + 1 } satisfies HistState, '', url); }
+function replace(url: string) { if (STANDALONE) { if (!url.includes('?')) setHash(url); return; } window.history.replaceState({ app: true, idx: histIdx() } satisfies HistState, '', url); }
 /** Plain left clicks navigate in place; modified clicks (new tab/window) are left to the browser. */
 const isPlainClick = (e: React.MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 
 export default function App() {
   const [data, setData] = useState<PortfolioData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>(() => tabFromPath(window.location.pathname));
+  const [tab, setTab] = useState<Tab>(() => tabFromPath(currentPath()));
   const [returnTab, setReturnTab] = useState<Tab>('overview');
   const [openPolicy, setOpenPolicy] = useState<Policy | null>(null);
   // The assistant keeps its conversation while people move between tabs, so it stays mounted once opened
-  const [assistantMounted, setAssistantMounted] = useState(() => tabFromPath(window.location.pathname) === 'assistant');
+  const [assistantMounted, setAssistantMounted] = useState(() => tabFromPath(currentPath()) === 'assistant');
   const [request, setRequest] = useState<AskRequest>(null);
   const wide = useMediaQuery('(min-width: 768px)');
   const [theme, toggleTheme] = useTheme();
@@ -63,7 +73,7 @@ export default function App() {
   const prevTab = useRef(tab);
   useEffect(() => {
     const label = NAV.find((t) => t.id === tab)?.label ?? '';
-    document.title = `${label} · Ditto`;
+    document.title = `${label} · Ditto (unofficial concept)`;
     if (prevTab.current === tab) return;
     const from = prevTab.current;
     prevTab.current = tab;
@@ -74,8 +84,9 @@ export default function App() {
 
   const load = () => {
     setLoadError(null);
-    fetch('/api/portfolio')
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`Server returned ${r.status}`))))
+    (STANDALONE
+      ? import('../server/tools').then((m) => m.portfolio)
+      : fetch('/api/portfolio').then((r) => (r.ok ? r.json() : Promise.reject(new Error(`Server returned ${r.status}`)))))
       .then(setData)
       .catch((e) => setLoadError(e.message || 'Could not reach the server'));
   };
@@ -123,15 +134,16 @@ export default function App() {
 
   // Back / Forward: the URL is the source of truth
   useEffect(() => {
-    if (!(window.history.state as HistState | null)?.app) replace(window.location.pathname + window.location.search);
+    if (!STANDALONE && !(window.history.state as HistState | null)?.app) replace(window.location.pathname + window.location.search);
     const onPop = () => {
-      const t = tabFromPath(window.location.pathname);
+      const t = tabFromPath(currentPath());
       showTab(t, 'none');
       const id = policyFromUrl();
       setOpenPolicy(id ? dataRef.current?.policies.find((x) => x.id === id) ?? null : null);
     };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
+    const evt = STANDALONE ? 'hashchange' : 'popstate';
+    window.addEventListener(evt, onPop);
+    return () => window.removeEventListener(evt, onPop);
   }, [showTab]);
 
   // A policy in the URL (reload or shared link) opens once the data has loaded
@@ -161,7 +173,11 @@ export default function App() {
 
         <header className="chrome-glass sticky top-0 z-30" {...(scrolled ? { 'data-scrolled': '' } : {})}>
           <div className="mx-auto flex h-16 max-w-[1360px] items-center gap-4 px-4 md:h-20 md:px-6">
-            <DittoLogo className="h-6 md:h-7" />
+            <span className="flex items-center gap-2.5">
+              <DittoLogo className="h-6 md:h-7" />
+              {/* This is a portfolio concept, not a Ditto product */}
+              <span className="whitespace-nowrap rounded-full border border-line bg-card px-2.5 py-1 text-[11px] font-semibold leading-none text-ink-2 md:text-[12px]">Unofficial concept</span>
+            </span>
 
             {/* Tablet and desktop: pill navigation */}
             <nav aria-label="Main" className="mx-auto hidden md:block">

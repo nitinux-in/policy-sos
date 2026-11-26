@@ -47,6 +47,12 @@ export async function askAgent(
   onStep: (s: AgentStep) => void,
   signal?: AbortSignal,
 ): Promise<AgentAnswer> {
+  if (import.meta.env.VITE_STANDALONE) {
+    // Shareable build: the same deterministic engine, running in the page (no server, no network)
+    const { runAgent } = await import('../server/agent');
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    return runAgent(message, onStep);
+  }
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

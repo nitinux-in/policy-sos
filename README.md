@@ -21,7 +21,7 @@ Open **http://localhost:5173**. The API runs on port 8787; Vite forwards `/api` 
 | `npm run typecheck` | Type-checks app, server and scripts |
 | `npm run build` | Type-checks and builds the app into `dist/` |
 | `npm start` | Builds, then serves the built app from the API server |
-| `npm run check:engine` | Runs 72 assistant prompts twice and compares them with the saved snapshot (see below) |
+| `npm run check:engine` | Runs 152 assistant prompts twice, checks the answer contract and compares them with the saved snapshot (see below) |
 
 Shortcut for demos: `http://localhost:5173/?ask=Compare%20my%20health%20policies` opens the assistant with that question.
 
@@ -32,24 +32,31 @@ There is **no AI model** behind the assistant — not Gemini or any other provid
 Every answer comes from a **deterministic local engine** (`server/agent.ts`):
 
 1. **Safety checks** — unreadable input, attempts to change the rules, abuse.
-2. **Intent** — the question is matched by rules to one supported kind: emergency, compare, claim process, explain a policy detail, prepare, or coverage check. Questions about car, travel, home or personal accident insurance, purchases or recommendations, and non-insurance questions get an honest reply with suggested questions.
-3. **Tools** — a fixed sequence of local tools runs against the sample data (`server/tools.ts`): `searchPolicies`, `retrievePolicyEvidence`, `evaluateCoverage`, `comparePolicies`, `calculatePotentialCost`, `generateActionPlan`. The "How this answer was built" list in each answer shows the actual steps that ran.
-4. **Answer** — composed from the tool results with fixed templates, so the same question always gets the same answer.
+2. **Situation** — the message is read into who is affected, what is happening (emergency right now, already admitted, planned, discharged/paid, or just a question), the treatment or condition, the hospital and any bill amount (`server/situation.ts`). Common misspellings and a few Hinglish words are normalised first.
+3. **Tools** — a fixed sequence of local tools runs against the sample data (`server/tools.ts`): `searchPolicies`, `retrievePolicyEvidence`, `assessClaimFactors`, `comparePolicies`, `calculatePotentialCost`, `generateActionPlan`. The "How this answer was built" list in each answer shows the actual steps that ran.
+4. **Claim factors** — `assessClaimFactors` (`server/confidence.ts`) checks everything that could change a claim: who is insured, policy active, waiting periods computed from clause dates, pre-existing conditions and disclosure, exclusions, network hospital, deadlines, co-pay, sub-limits, room rent and sum insured left.
+5. **Answer** — composed from those results (`server/scenarios.ts`): a one-sentence **headline** that answers the question, up to four **key points**, a **confidence** rating built from the factors, and longer explanations folded into **details**. The same question always gets the same answer.
 
-Answer rules: coverage statements cite clauses; *Supported / Uncertain / Not found* are kept distinct from interpretation and unknowns; approval is never guaranteed; medical emergencies show "call 112" first; text in uploaded documents is treated as untrusted and any instructions in it are ignored.
+Answer rules: coverage statements cite clauses; approval is never guaranteed; a "call 112" line appears only when an emergency is happening now and the person isn't in care yet — someone already admitted gets the insurance answer directly; text in uploaded documents is treated as untrusted and any instructions in it are ignored.
+
+The scenario matrix, the confidence rule and the factor list are in [`docs/answer-scenarios.md`](docs/answer-scenarios.md).
 
 The engine answers each question on its own (no memory of earlier messages) and recognises common phrasings rather than any wording — the curated prompts below are the reliable path.
 
 ### Curated demo questions
 
-- My father has been admitted after a cardiac emergency. Which policy can help, and what should I do?
+- My father is admitted in hospital for a heart problem
+- My father has chest pain right now
+- I have diabetes, if I get treated and pay cash will I be reimbursed?
+- Is cataract surgery covered?
+- My mother is in hospital
 - Is maternity covered for my wife?
 - Compare my health policies
-- Who is the nominee on my term life policy, and what would my family receive?
+- What happens to my family if I die?
 - I have a planned surgery next month. How do I get cashless treatment?
 - My son was discharged after a hospital stay. How do I file a reimbursement claim?
-- How does my nominee make a claim on my term life policy?
 - My father's hospital bill is ₹4 lakh for a cardiac procedure. How much will I pay?
+- My health claim was rejected — what can I do?
 
 ## Scope and demo data
 
@@ -72,8 +79,12 @@ The visual language is translated from Ditto's site (see `../DITTO_DESIGN_SYSTEM
 ```
 server/
   index.ts        Express API: /api/health, /api/portfolio, /api/chat (streams tool steps, then the answer)
-  agent.ts        Deterministic local demo engine (intents → tools → templated answer)
-  tools.ts        The six local policy tools
+  agent.ts        Deterministic local demo engine: routing (situation → topic → composer)
+  situation.ts    Reads a message into person, care state, treatment, hospital, bill
+  confidence.ts   Claim-factor checks and the confidence rule
+  scenarios.ts    Answer composers: headline, key points, confidence, details
+  collector.ts    Records the real tool steps and assembles the answer
+  tools.ts        The local policy tools
 shared/
   demo.ts         Product name, demo date, active categories, data scoping
   types.ts        Shared data and answer types
@@ -86,8 +97,10 @@ src/
   format.ts       Formatting helpers and the chat API client
   prompts.ts      Curated prompts used by tiles and shortcuts
   index.css       Design tokens, light/dark themes, fonts, motion
+docs/
+  answer-scenarios.md  Scenario matrix, confidence rule, factor list
 scripts/
-  check-engine.ts     Engine regression check
+  check-engine.ts     Engine regression check (answer contract + snapshot)
   engine-cases.json   Prompts it runs
   engine-snapshot.json  Expected answers
 ```

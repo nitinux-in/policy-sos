@@ -108,6 +108,22 @@
           "text": "Medical expenses incurred 30 days before and 60 days after a covered hospitalisation are payable."
         },
         {
+          "id": "HLT-01-3.5",
+          "section": "Section 3.5",
+          "title": "Day care procedures",
+          "type": "benefit",
+          "topics": [
+            "day care",
+            "daycare",
+            "chemotherapy",
+            "dialysis",
+            "cataract",
+            "lithotripsy",
+            "short stay"
+          ],
+          "text": "Listed day care procedures that need less than 24 hours in hospital because of medical technology (for example cataract surgery, chemotherapy, dialysis and lithotripsy) are covered up to the sum insured."
+        },
+        {
           "id": "HLT-01-3.6",
           "section": "Section 3.6",
           "title": "Ambulance",
@@ -119,6 +135,22 @@
           ],
           "text": "Road ambulance charges up to ₹3,000 per hospitalisation.",
           "amount": 3000
+        },
+        {
+          "id": "HLT-01-3.7",
+          "section": "Section 3.7",
+          "title": "Mental illness",
+          "type": "benefit",
+          "topics": [
+            "mental health",
+            "mental illness",
+            "psychiatric",
+            "depression",
+            "anxiety",
+            "bipolar",
+            "schizophrenia"
+          ],
+          "text": "In-patient treatment for mental illness at a recognised psychiatric or general hospital is covered like any other illness, up to the sum insured. Outpatient therapy and counselling are not covered."
         },
         {
           "id": "HLT-01-4.1",
@@ -154,7 +186,7 @@
             "illness",
             "new policy"
           ],
-          "text": "Illnesses contracted within the first 30 days of the first policy are not covered, except accidents."
+          "text": "Illnesses contracted within the first 30 days of the first policy are not covered, except accidents. The first policy (with the earlier insurer, ported in) started 2023-07-01."
         },
         {
           "id": "HLT-01-5.2",
@@ -183,8 +215,46 @@
             "delivery",
             "childbirth"
           ],
-          "text": "Maternity expenses are covered after a waiting period of 24 months, up to ₹50,000 per delivery.",
+          "text": "Maternity expenses are covered after a waiting period of 24 months, counted from 2026-07-01 when the benefit was added (the earlier insurer had no maternity cover, so no credit carries over), up to ₹50,000 per delivery.",
           "amount": 50000
+        },
+        {
+          "id": "HLT-01-5.4",
+          "section": "Section 5.4",
+          "title": "Specific illnesses (24 months)",
+          "type": "waiting_period",
+          "topics": [
+            "specific illness",
+            "cataract",
+            "hernia",
+            "hydrocele",
+            "gallbladder",
+            "kidney stones",
+            "piles",
+            "fistula",
+            "sinus",
+            "tonsils",
+            "varicose veins",
+            "prostate",
+            "hysterectomy"
+          ],
+          "text": "Cataract, hernia, hydrocele, gallbladder and kidney stones, piles and fistula, sinus and tonsil surgery, varicose veins, benign prostate enlargement and hysterectomy are covered after 24 months of continuous coverage, counted from 2023-07-01 (prior insurer porting included), unless caused by an accident."
+        },
+        {
+          "id": "HLT-01-5.5",
+          "section": "Section 5.5",
+          "title": "Joint replacement (48 months)",
+          "type": "waiting_period",
+          "topics": [
+            "joint replacement",
+            "knee replacement",
+            "hip replacement",
+            "knee",
+            "hip",
+            "arthritis",
+            "osteoarthritis"
+          ],
+          "text": "Joint replacement surgery (knee or hip), unless needed because of an accident, is covered after 48 months of continuous coverage, counted from 2023-07-01."
         },
         {
           "id": "HLT-01-6.2",
@@ -217,6 +287,52 @@
           "text": "Cosmetic procedures, outpatient consultations and spectacles are excluded."
         },
         {
+          "id": "HLT-01-6.5",
+          "section": "Section 6.5",
+          "title": "Non-medical items",
+          "type": "exclusion",
+          "topics": [
+            "non-medical",
+            "consumables",
+            "gloves",
+            "admission kit",
+            "toiletries",
+            "attendant"
+          ],
+          "text": "Non-medical items such as admission kits, toiletries, gloves, masks and attendant charges are not payable."
+        },
+        {
+          "id": "HLT-01-6.6",
+          "section": "Section 6.6",
+          "title": "Self-inflicted injury and substance abuse",
+          "type": "exclusion",
+          "topics": [
+            "self-inflicted",
+            "alcohol",
+            "drug abuse",
+            "intoxication",
+            "hazardous sports"
+          ],
+          "text": "Treatment for intentional self-inflicted injury, alcohol or drug abuse, and injuries from hazardous or adventure sports is excluded."
+        },
+        {
+          "id": "HLT-01-7.1",
+          "section": "Section 7.1",
+          "title": "Disclosure of health conditions",
+          "type": "condition",
+          "topics": [
+            "disclosure",
+            "non-disclosure",
+            "declared",
+            "declare",
+            "proposal",
+            "misrepresentation",
+            "pre-existing",
+            "moratorium"
+          ],
+          "text": "Cover is issued on the basis of the proposal form. If a pre-existing condition or other material fact was not disclosed, the insurer may reject related claims and cancel the policy. After 60 months of continuous coverage, counted from 2023-07-01, no claim can be contested for non-disclosure except for proven fraud."
+        },
+        {
           "id": "HLT-01-8.1",
           "section": "Section 8.1",
           "title": "How to claim",
@@ -228,6 +344,86 @@
             "reimbursement"
           ],
           "text": "Cashless: show the health card at the network hospital TPA desk. Reimbursement: submit claim form, discharge summary, bills, prescriptions and reports within 30 days of discharge."
+        },
+        {
+          "id": "HLT-01-8.2",
+          "section": "Section 8.2",
+          "title": "Claim intimation and deadlines",
+          "type": "condition",
+          "topics": [
+            "intimation",
+            "intimate",
+            "deadline",
+            "late",
+            "delay",
+            "reimbursement",
+            "pre-authorisation"
+          ],
+          "text": "Emergency admissions: intimate the insurer within 24 hours of admission. Planned admissions: request pre-authorisation 48 hours before. Reimbursement documents within 30 days of discharge; post-hospitalisation bills within 15 days of completing that treatment. Delays may be condoned if the reason is explained in writing."
+        },
+        {
+          "id": "HLT-01-9.1",
+          "section": "Section 9.1",
+          "title": "Adding family members",
+          "type": "condition",
+          "topics": [
+            "add member",
+            "add family",
+            "newborn",
+            "baby",
+            "marriage",
+            "parents",
+            "mother",
+            "father",
+            "enrol"
+          ],
+          "text": "Spouse, children or parents can be added at renewal, subject to a proposal form and medical underwriting; waiting periods start afresh for each new member. A newborn can be added within 90 days of birth."
+        },
+        {
+          "id": "HLT-01-9.2",
+          "section": "Section 9.2",
+          "title": "Portability",
+          "type": "condition",
+          "topics": [
+            "portability",
+            "port",
+            "switch insurer",
+            "migrate"
+          ],
+          "text": "You may port this policy to another insurer at renewal by applying at least 45 days before the renewal date. Waiting periods already served carry over up to the existing sum insured."
+        },
+        {
+          "id": "HLT-01-9.3",
+          "section": "Section 9.3",
+          "title": "Renewal and grace period",
+          "type": "condition",
+          "topics": [
+            "renewal",
+            "renew",
+            "grace",
+            "lapse",
+            "premium",
+            "due"
+          ],
+          "text": "Renew by 2027-06-30. A 30-day grace period keeps continuity (waiting-period credit is not lost), but treatment taken while the premium is unpaid is not covered. If not renewed within the grace period, the policy lapses and waiting periods restart."
+        },
+        {
+          "id": "HLT-01-10.1",
+          "section": "Section 10.1",
+          "title": "Grievances and Ombudsman",
+          "type": "condition",
+          "topics": [
+            "rejected",
+            "rejection",
+            "denied",
+            "grievance",
+            "complaint",
+            "ombudsman",
+            "appeal",
+            "repudiated",
+            "short-settled"
+          ],
+          "text": "If a claim is rejected or short-settled, write to the Grievance Officer (grievance desk 1800-000-0102); a reply is due within 14 days. If unresolved after 30 days, complain through IRDAI Bima Bharosa or to the Insurance Ombudsman within 1 year of the insurer’s final reply (claims up to ₹50 lakh)."
         }
       ]
     },
@@ -310,6 +506,22 @@
           "text": "Pre-existing diseases and the 30-day initial waiting period are waived for all enrolled members."
         },
         {
+          "id": "HLT-02-2.4",
+          "section": "Section 2.4",
+          "title": "Group waiver of waiting periods",
+          "type": "benefit",
+          "topics": [
+            "waiting period",
+            "specific illness",
+            "joint replacement",
+            "initial waiting",
+            "cataract",
+            "hernia",
+            "knee replacement"
+          ],
+          "text": "As a group policy, the initial, pre-existing, specific-illness and maternity waiting periods do not apply to enrolled members."
+        },
+        {
           "id": "HLT-02-2.6",
           "section": "Clause 2.6",
           "title": "Network hospitals (Pune)",
@@ -355,6 +567,36 @@
             "admitted"
           ],
           "text": "Cashless facility at empanelled hospitals through the TPA. Emergency admissions must be intimated to the TPA within 24 hours."
+        },
+        {
+          "id": "HLT-02-2.7",
+          "section": "Section 2.7",
+          "title": "Day care procedures",
+          "type": "benefit",
+          "topics": [
+            "day care",
+            "daycare",
+            "chemotherapy",
+            "dialysis",
+            "cataract",
+            "lithotripsy",
+            "short stay"
+          ],
+          "text": "Listed day care procedures needing less than 24 hours in hospital (for example cataract surgery, chemotherapy and dialysis) are covered up to the family sum insured."
+        },
+        {
+          "id": "HLT-02-2.8",
+          "section": "Section 2.8",
+          "title": "Pre and post hospitalisation",
+          "type": "benefit",
+          "topics": [
+            "pre hospitalisation",
+            "post hospitalisation",
+            "follow up",
+            "medicines",
+            "tests"
+          ],
+          "text": "Medical expenses incurred 30 days before and 60 days after a covered hospitalisation are payable."
         },
         {
           "id": "HLT-02-3.1",
@@ -403,6 +645,18 @@
           "amount": 300000
         },
         {
+          "id": "HLT-02-3.4",
+          "section": "Section 3.4",
+          "title": "Cataract sub-limit",
+          "type": "limit",
+          "topics": [
+            "cataract",
+            "eye"
+          ],
+          "text": "Cataract treatment is limited to ₹25,000 per eye per policy year.",
+          "amount": 25000
+        },
+        {
           "id": "HLT-02-4.1",
           "section": "Clause 4.1",
           "title": "Coverage ends with employment",
@@ -414,6 +668,42 @@
             "leave"
           ],
           "text": "Cover ends on the last working day of the employee. Conversion to an individual policy may be offered within 30 days."
+        },
+        {
+          "id": "HLT-02-4.2",
+          "section": "Section 4.2",
+          "title": "Group enrolment and disclosure",
+          "type": "condition",
+          "topics": [
+            "disclosure",
+            "non-disclosure",
+            "declared",
+            "declare",
+            "underwriting",
+            "proposal",
+            "pre-existing",
+            "enrolment"
+          ],
+          "text": "Members are enrolled through the employer without individual medical underwriting, so there is no health questionnaire on which conditions had to be declared. Claims can still be rejected for false information in the claim itself."
+        },
+        {
+          "id": "HLT-02-4.3",
+          "section": "Section 4.3",
+          "title": "Adding dependants",
+          "type": "condition",
+          "topics": [
+            "add member",
+            "add family",
+            "newborn",
+            "baby",
+            "marriage",
+            "parents",
+            "mother",
+            "father",
+            "enrol",
+            "enrolment"
+          ],
+          "text": "A new spouse or newborn can be added within 30 days of marriage or birth. Parents and parents-in-law can be added only during the annual enrolment window in March through the HR portal, with cover starting 1 April."
         },
         {
           "id": "HLT-02-4.4",
@@ -430,6 +720,37 @@
           "text": "Dental treatment is excluded unless arising from an accident requiring hospitalisation."
         },
         {
+          "id": "HLT-02-4.5",
+          "section": "Section 4.5",
+          "title": "Cosmetic, OPD and spectacles",
+          "type": "exclusion",
+          "topics": [
+            "cosmetic",
+            "opd",
+            "outpatient",
+            "consultation",
+            "spectacles",
+            "glasses",
+            "contact lens"
+          ],
+          "text": "Cosmetic procedures, outpatient consultations, spectacles and contact lenses are excluded."
+        },
+        {
+          "id": "HLT-02-4.6",
+          "section": "Section 4.6",
+          "title": "Non-medical items",
+          "type": "exclusion",
+          "topics": [
+            "non-medical",
+            "consumables",
+            "gloves",
+            "admission kit",
+            "toiletries",
+            "attendant"
+          ],
+          "text": "Non-medical items such as admission kits, toiletries, gloves, masks and attendant charges are not payable."
+        },
+        {
           "id": "HLT-02-6.1",
           "section": "Clause 6.1",
           "title": "How to claim",
@@ -441,6 +762,40 @@
             "reimbursement"
           ],
           "text": "Intimate the TPA via the HR portal or helpline. Submit discharge summary, final bill, ID proof of the patient and employee ID within 30 days of discharge."
+        },
+        {
+          "id": "HLT-02-6.2",
+          "section": "Section 6.2",
+          "title": "Claim deadlines",
+          "type": "condition",
+          "topics": [
+            "intimation",
+            "intimate",
+            "deadline",
+            "late",
+            "delay",
+            "pre-authorisation",
+            "planned"
+          ],
+          "text": "Planned admissions need pre-authorisation through the TPA at least 72 hours before admission. Emergency admissions must be intimated within 24 hours. Late intimation or submission may be accepted if the delay is explained in writing."
+        },
+        {
+          "id": "HLT-02-6.3",
+          "section": "Section 6.3",
+          "title": "Grievances and Ombudsman",
+          "type": "condition",
+          "topics": [
+            "rejected",
+            "rejection",
+            "denied",
+            "grievance",
+            "complaint",
+            "ombudsman",
+            "appeal",
+            "repudiated",
+            "short-settled"
+          ],
+          "text": "Raise a rejected or short-settled claim with the HR benefits desk and the insurer’s Grievance Officer; a reply is due within 14 days. If unresolved after 30 days, complain through IRDAI Bima Bharosa or to the Insurance Ombudsman within 1 year of the insurer’s final reply (claims up to ₹50 lakh)."
         }
       ]
     },
@@ -859,6 +1214,21 @@
           "amount": 2500000
         },
         {
+          "id": "LIF-01-2.3",
+          "section": "Section 2.3",
+          "title": "Worldwide cover",
+          "type": "benefit",
+          "topics": [
+            "abroad",
+            "overseas",
+            "international",
+            "outside india",
+            "worldwide",
+            "foreign"
+          ],
+          "text": "The death benefit is payable wherever death occurs, in India or abroad. For a death abroad, the death certificate must be attested by the Indian embassy or consulate."
+        },
+        {
           "id": "LIF-01-3.1",
           "section": "Clause 3.1",
           "title": "Suicide exclusion",
@@ -867,6 +1237,24 @@
             "suicide"
           ],
           "text": "Suicide within 12 months of the policy start or revival: 80% of premiums paid are refunded instead of the sum assured."
+        },
+        {
+          "id": "LIF-01-3.2",
+          "section": "Section 3.2",
+          "title": "Accidental death rider exclusions",
+          "type": "exclusion",
+          "topics": [
+            "rider exclusion",
+            "alcohol",
+            "drugs",
+            "intoxication",
+            "hazardous",
+            "adventure sports",
+            "self-inflicted",
+            "war",
+            "criminal"
+          ],
+          "text": "The accidental death rider is not payable for death due to self-inflicted injury, intoxication by alcohol or drugs, hazardous or adventure sports, taking part in a criminal act, or war. The base death benefit is unaffected."
         },
         {
           "id": "LIF-01-3.3",
@@ -884,6 +1272,25 @@
           "text": "This policy does not include a critical illness or hospitalisation benefit. Only death (and accidental death under the rider) is covered."
         },
         {
+          "id": "LIF-01-3.4",
+          "section": "Section 3.4",
+          "title": "Disclosure and Section 45",
+          "type": "condition",
+          "topics": [
+            "disclosure",
+            "non-disclosure",
+            "declared",
+            "smoking",
+            "smoker",
+            "tobacco",
+            "misrepresentation",
+            "contestability",
+            "section 45",
+            "medical history"
+          ],
+          "text": "The policy was issued on the proposal form (declared: non-smoker, no medical history). Under Section 45 of the Insurance Act, 1938, the insurer can question the policy for fraud or misstatement of material facts only within 3 years from the date of issue or revival, counted from 2021-08-06; after that it cannot be called in question on any ground."
+        },
+        {
           "id": "LIF-01-3.5",
           "section": "Clause 3.5",
           "title": "Grace period",
@@ -898,6 +1305,35 @@
           "text": "A 30-day grace period applies for annual premiums. Cover lapses if premium is unpaid after the grace period."
         },
         {
+          "id": "LIF-01-3.6",
+          "section": "Section 3.6",
+          "title": "Revival after lapse",
+          "type": "condition",
+          "topics": [
+            "revival",
+            "revive",
+            "reinstate",
+            "lapse",
+            "lapsed",
+            "restart"
+          ],
+          "text": "A lapsed policy can be revived within 5 years of the first unpaid premium by paying all arrears with interest and giving health evidence if asked. Revival restarts the 12-month suicide clause and the 3-year Section 45 period."
+        },
+        {
+          "id": "LIF-01-4.1",
+          "section": "Section 4.1",
+          "title": "Nomination",
+          "type": "condition",
+          "topics": [
+            "nominee",
+            "change nominee",
+            "nomination",
+            "beneficiary",
+            "appointee"
+          ],
+          "text": "Nominee: Meera Mehta (spouse), 100%. The nomination can be changed at any time during the policy term by a written endorsement request (Section 39 of the Insurance Act); the latest registered nomination applies."
+        },
+        {
           "id": "LIF-01-5.1",
           "section": "Clause 5.1",
           "title": "How to claim",
@@ -909,6 +1345,37 @@
             "nominee"
           ],
           "text": "Nominee submits the claim form, death certificate, policy document, nominee ID and bank details. Additional documents may be required for accidental death."
+        },
+        {
+          "id": "LIF-01-5.2",
+          "section": "Section 5.2",
+          "title": "Claim settlement timeline",
+          "type": "condition",
+          "topics": [
+            "claim settlement",
+            "timeline",
+            "payout time",
+            "intimation",
+            "investigation"
+          ],
+          "text": "Intimate the claim as soon as possible after death. The insurer settles within 15 days of receiving all documents, or within 45 days if an investigation is needed."
+        },
+        {
+          "id": "LIF-01-6.1",
+          "section": "Section 6.1",
+          "title": "Grievances and Ombudsman",
+          "type": "condition",
+          "topics": [
+            "rejected",
+            "rejection",
+            "denied",
+            "grievance",
+            "complaint",
+            "ombudsman",
+            "appeal",
+            "repudiated"
+          ],
+          "text": "If a death claim is rejected, the nominee can write to the Grievance Officer (claims desk 1800-000-0404); a reply is due within 14 days. If unresolved after 30 days, complain through IRDAI Bima Bharosa or to the Insurance Ombudsman within 1 year of the insurer’s final reply (claims up to ₹50 lakh); larger claims go to the consumer commission or court."
         }
       ]
     },

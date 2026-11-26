@@ -1,181 +1,131 @@
 // Deterministic local demo engine.
 //
-// No AI model or external service is involved. A rule-based resolver maps each message to one
-// supported intent, runs a fixed sequence of the local policy tools (server/tools.ts) against the
-// simulated portfolio, and composes the answer from the tool results with fixed templates.
-// The same message always produces the same answer.
+// No AI model or external service is involved. A rule-based router reads each message into a situation
+// (server/situation.ts), picks one supported kind of answer, runs the local policy tools (server/tools.ts)
+// against the sample portfolio, and composes a structured answer: a one-sentence headline, up to four key
+// points, a confidence rating built from explicit claim factors (server/confidence.ts), and details folded
+// into sections (server/scenarios.ts). The same message always produces the same answer.
 
-import type {
-  ActionPlan,
-  AgentAnswer,
-  AgentStep,
-  Category,
-  Clause,
-  ComparisonResult,
-  CostResult,
-  CoverageResult,
-  EvidenceItem,
-  Policy,
-} from '../shared/types.js';
-import { runTool, TOOL_LABELS, portfolio, type ToolName } from './tools.js';
+import type { AgentAnswer, AgentStep, Category, Clause, EvidenceItem, Policy } from '../shared/types.js';
+import { portfolio } from './tools.js';
+import { Collector } from './collector.js';
+import { clauseWith, fmtDate, inr } from './confidence.js';
+import { readLifeContext, readSituation } from './situation.js';
+import { runHealth, runHealthTopic, runLife, type HealthTopic, type LifeTopic } from './scenarios.js';
 import type { ActiveCategory } from '../shared/demo.js';
-
-// ---------- result collection ----------
-
-class Collector {
-  steps: AgentStep[] = [];
-  evidence = new Map<string, EvidenceItem>();
-  coverage = new Map<string, CoverageResult>();
-  comparison?: ComparisonResult;
-  cost: CostResult[] = [];
-  plan?: ActionPlan;
-  injectionSeen = false;
-  /** Set when part of the question is about insurance outside health and term life. */
-  scopeNote?: string;
-
-  constructor(private emit: (s: AgentStep) => void) {}
-
-  note(step: AgentStep) {
-    this.steps.push(step);
-    this.emit(step);
-  }
-
-  call(name: ToolName, args: unknown): any {
-    const { ok, result, detail } = runTool(name, args);
-    this.note({ tool: name, label: TOOL_LABELS[name], detail: ok ? detail : 'Could not complete this step', ok });
-    if (ok) this.absorb(name, result);
-    if (JSON.stringify(result).includes('[instruction-like text removed]')) this.injectionSeen = true;
-    return result;
-  }
-
-  private absorb(name: ToolName, r: any) {
-    if (name === 'retrievePolicyEvidence') for (const e of r.evidence ?? []) this.evidence.set(e.clauseId, e);
-    if (name === 'evaluateCoverage') for (const c of r.results ?? []) this.coverage.set(c.policyId, c);
-    if (name === 'comparePolicies' && r.rows) this.comparison = r;
-    if (name === 'calculatePotentialCost' && 'sufficientData' in r) this.cost = [...this.cost.filter((c) => c.policyId !== r.policyId), r];
-    if (name === 'generateActionPlan') this.plan = r;
-  }
-
-  answer(text: string, opts: { emergency?: boolean; suggestions?: string[] } = {}): AgentAnswer {
-    const coverage = [...this.coverage.values()];
-    // Evidence shown = clauses the evaluation relied on; otherwise everything retrieved
-    let evidence = [...this.evidence.values()];
-    if (coverage.length) {
-      const used = new Map<string, EvidenceItem>();
-      for (const c of coverage) for (const e of [...c.supporting, ...c.conflicting, ...c.conditions]) used.set(e.clauseId, e);
-      if (used.size) evidence = [...used.values()];
-    }
-    if (this.scopeNote) text += `\n\n*${this.scopeNote}*`;
-    return {
-      text,
-      steps: this.steps,
-      coverage,
-      evidence: evidence.slice(0, 8),
-      comparison: this.comparison,
-      cost: this.cost.length ? this.cost : undefined,
-      plan: this.plan,
-      safetyNotice: opts.emergency ? 'Urgent care first — call 112. Don’t wait for insurance.' : undefined,
-      untrustedNotice: this.injectionSeen
-        ? 'An uploaded document contains instructions aimed at the assistant. They were removed and treated as untrusted text, not policy evidence.'
-        : undefined,
-      suggestions: opts.suggestions,
-    };
-  }
-}
 
 // ---------- language cues ----------
 
-const CATEGORY_LABEL: Record<ActiveCategory, string> = {
-  health: 'health', life: 'term life',
-};
+const CATEGORY_LABEL: Record<ActiveCategory, string> = { health: 'health', life: 'term life' };
 
 // Only health and term life are supported. Other insurance types are recognised solely so the
 // engine can say they are out of scope instead of answering them.
 const CATEGORY_CUES: [ActiveCategory, RegExp][] = [
-  ['health', /\b(health|medical|hospitali[sz]\w*|hospitals?|admitted|discharged?|surgery|operation|appendix|appendicitis|hernia|broke|broken|fell|doctor|cardiac|heart|dental|dentist|teeth|tooth|maternity|pregnan\w*|delivery|illness|icu|cataract|co-?pay|room rent|pre-?existing|cashless|reimbursement|floater|injur\w*|hurt|fractured?)\b/],
-  ['life', /\b(term|life insurance|life cover|life policy|nominee|death|die|died|dies|dead|pass(ed)? away|life assured|sum assured|accidental death|rider|critical illness)\b/],
+  ['health', /\b(health|medical|hospitali[sz]\w*|hospitals?|admitted|discharged?|surgery|operation|appendix|appendicitis|hernia|broke|broken|fell|doctor|cardiac|heart|dental|dentist|teeth|tooth|maternity|pregnan\w*|delivery|illness|icu|cataract|co-?pay|room rent|pre-?existing|cashless|reimburs\w*|floater|injur\w*|hurt|fractured?|diabet\w*|thyroid|asthma|dengue|cancer|knee|opd|ambulance|bp|blood pressure|hypertension|chest pain|unconscious|fever|mental|depression|dialysis|chemo\w*|sum insured|tpa|network)\b/],
+  ['life', /\b(term|life insurance|life cover|life policy|nominee|death|die|died|dies|dead|pass(ed)? away|life assured|sum assured|accidental death|rider|critical illness|suicide|section 45)\b/],
 ];
-const OUT_OF_SCOPE = /\b(car|motor|vehicle|windshield|windscreen|bumper|bike|scooter|garage|tyres?|tires?|zero depreciation|no-claim bonus|travel\w*|trip|abroad|flights?|baggage|luggage|japan|overseas|visa|home insurance|house|flat|apartment|burglary|burgled|laptop|jewellery|leak\w*|earthquake|personal accident|disability|disabled)\b/;
-
-const INSURANCE_WORDS = /\b(insur\w*|polic(y|ies)|cover\w*|claims?|premiums?|renew\w*|deductible|exclusions?|waiting period|sum insured|benefits?|riders?|cost|pay|bill|compare)\b/;
-const EMERGENCY = /\b(emergency|admitted|icu|heart attack|stroke|chest pain|unconscious|collapsed|fainted|seizure|bleeding|injur(ed|y|ies)|hurt|fractured|broke|broken|fell|(is|are|she's|he's|i'm|in) in (the )?hospital)\b/;
-const NOT_URGENT = /\b(planned|planning|next month|next year)\b/;
+const OUT_OF_SCOPE = /\b(car|motor|vehicle|windshield|windscreen|bumper|bike|scooter|garage|tyres?|tires?|zero depreciation|no-claim bonus|travel insurance|travel policy|trip|flights?|baggage|luggage|japan|visa|home insurance|house|flat|apartment|burglary|burgled|laptop|jewellery|leak\w*|earthquake|personal accident|disability|disabled)\b/;
+const INSURANCE_WORDS = /\b(insur\w*|polic(y|ies)|cover\w*|claims?|premiums?|renew\w*|deductible|exclusions?|waiting period|sum insured|benefits?|riders?|cost|pay|bill|compare|nominee|port)\b/;
 const COMPARE = /\b(compare|comparison|difference|differ|vs|versus|better|best)\b/;
 const EXPLAIN = /\b(explain|summari[sz]e|summary|overview|tell me about|walk me through|key (benefits|facts|details|terms)|what does .{1,40} mean)\b/;
 const PREPARE = /\b(what should i (check|know)|before (i|we) (go|travel|leave)|preparing for|prepare for)\b/;
-const SCENARIO = /\b(covered|cover (me|this|it|my)|can i claim|claim|happened|admitted|hospitali[sz]ed|cracked|stolen|damaged|injur\w*|delayed|lost|(?<!co-)pay)\b/;
-const WANTS_COST = /\b(how much|out[- ]of[- ]pocket|cost|costs|(?<!co-)pay|paying|bill|expenses?|my share)\b/;
-const WANTS_PLAN = /\b(claim|steps|what should i do|what do i do|next|checklist|how do i)\b/;
-const GUARANTEE = /(guarantee|promise|100%|definitely|confirm).{0,40}(approv|pay|cover|claim|settle)/;
 const JAILBREAK = /(ignore|forget|disregard|override)\b.{0,30}\b(instructions|rules|prompt|guidelines)|system prompt|developer mode|\bDAN\b|jailbreak|pretend (you are|to be)|act as (an?|my)|you are now|reveal (your|the) (prompt|instructions)|<\/?script|drop table/i;
 const ABUSE = /\b(fuck|shit|bitch|bastard|idiot)\b/i;
-// Words in key-fact labels too generic to signal that a fact is being asked about
 const FACT_STOPWORDS = new Set(['cover', 'covered', 'value', 'insured', 'length', 'per', 'max', 'medical', 'expenses', 'accident', 'accidental', 'life', 'sum']);
-// Words that describe the request rather than the policy topic being asked about
 const QUESTION_WORDS = new Set(['explain', 'summarise', 'summarize', 'summary', 'overview', 'tell', 'about', 'walk', 'through', 'what', 'does', 'mean', 'means', 'policy', 'policies', 'plan', 'cover', 'key', 'benefits', 'exclusions', 'conditions', 'terms', 'details', 'facts', 'health', 'motor', 'travel', 'home', 'life', 'term', 'accident', 'personal', 'insurance', 'with', 'this', 'that', 'there', 'have']);
-const UNSUPPORTED = /\b(buy|purchase|new policy|get a quote|quotes?|sign up|cancel my policy|port my policy|file (a|my) claim for me|submit (a|my) claim|recommend|suggest (a|an|another) (plan|policy)|better (plan|policy|insurance|health insurance)|which (plan|policy) should i (buy|get|take))\b/;
-// Questions answered straight from the policy record or one clause type, not by a coverage verdict
+const UNSUPPORTED = /\b(buy|purchase|new policy|get a quote|quotes?|sign up|cancel my policy|file (a|my) claim for me|submit (a|my) claim for me|recommend|suggest (a|an|another) (plan|policy)|better (plan|policy|insurance|health insurance)|which (plan|policy) should i (buy|get|take))\b/;
 const WHO_COVERED = /\bwho('s| is| are)?( all)? (is )?(covered|insured)\b/;
 const PERIOD_Q = /\b(when (does|will|do) .{0,30}(end|expire|renew|lapse)|expir(y|es|e)|renewal date|valid (till|until)|cover (till|until)|how long .{0,25}(cover|valid))\b/;
-const TOPIC_EXPLAIN = /\b(grace period|missed (my |the )?(\w+ )?premium|premium (is )?(due|unpaid|overdue)|lapsed?|critical illness)\b/;
 const TYPE_ASK: [Clause['type'], RegExp, string][] = [
   ['exclusion', /\b(exclusions?|excluded|what('s| is) not covered)\b/, 'Exclusions'],
   ['waiting_period', /\bwaiting periods\b/, 'Waiting periods'],
   ['limit', /\b(limits|sub-?limits)\b/, 'Limits'],
   ['condition', /\bconditions\b/, 'Conditions'],
 ];
-const GREETING = /^(hi|hello|hey|thanks|thank you|ok|okay|cool|great|good (morning|afternoon|evening))\b[\s!.,]*(there)?[\s!.]*$/;
-// Plain-language words mapped to the terms the sample clauses use
+const GREETING = /^(hi|hello|hey|hii+|namaste|thanks|thank you|thx|ok|okay|cool|great|good (morning|afternoon|evening))\b[\s!.,]*(there)?[\s!.]*$/;
 const EXPANSIONS: [RegExp, string][] = [
   [/\b(die|dies|dead|pass(ed)? away)\b/, 'death'],
   [/\b(appendix|appendicitis|operation|procedure|hernia|gallbladder|knee|hip|fractured?|broke|broken)\b/, 'surgery hospitalisation'],
   [/\b(room upgrade|upgrade (my |the |a )?room|bigger room|private room)\b/, 'room rent'],
   [/\b(premium (is )?(due|unpaid|overdue)|missed (my |the )?(\w+ )?premium)\b/, 'grace premium lapse'],
 ];
+const DETAIL_QUESTION = /^(what|who|when|which|how (long|much|many))\b/;
+const SUBJECT: [ActiveCategory, RegExp][] = [
+  ['life', /\bmy (term life|term|life) (policy|insurance|plan|cover)\b/],
+  ['health', /\bmy (health|medical) (policy|insurance|plan|cover)\b/],
+];
+const FOLLOW_UP = /^(and |what about|how about|same for|also)\b/;
+const VAGUE = /^(is (it|this|that) covered|am i covered|are we covered|can i claim( it| this)?|will (insurance|it|they) pay|does (it|my policy|insurance) cover (it|this|that)|what('s| is) covered|is this claimable|covered\??)[\s?!.]*$/;
+
+// Life sub-topics
+const LIFE_NO_HEALTH = /\b(hospitali[sz]\w*|hospital|critical illness|cancer|illness|treatment|surgery|medical)\b/;
+const NOMINEE_CHANGE = /\b((change|update|add|replace|remove|switch) .{0,20}nominee|nominee .{0,20}(change|update)|new nominee)\b/;
+const LIFE_CLAIM = /\b(how (do|does|can|would|will|should) (i|we|my \w+|the nominee) (make|file|raise|start|submit|get|do) (a |the )?claim|how (do|can|should) (i|we|my \w+) claim|claim process|how to claim|claim steps|what documents|documents (are )?(needed|required)|what does (the|my) nominee need)\b/;
+const RIDER_Q = /\b(rider|riders)\b/;
+const DEATH_Q = /\b(die|dies|died|death|dead|pass(ed)? away|payout|receive|get|family|nominee)\b/;
+const GUARANTEE_ONLY = /(guarantee|promise|100%|definitely|assure).{0,40}(approv|pay|settle)|every claim .{0,20}approved/;
+const REJECTED = /\b(reject\w*|denied|repudiat\w*|refused|short-?settled|not (paid|approved|settled)|declined|appeal|ombudsman|grievance|complain\w*)\b/;
+
+// Health sub-topics answered from one or two clauses
+const HEALTH_TOPICS: [HealthTopic, RegExp][] = [
+  ['job', /\b(leave (my |the )?job|leaving (my |the )?job|resign\w*|quit (my )?job|change (my )?jobs?|lose (my )?job|laid off|switch(ing)? jobs?|employment ends)\b/],
+  ['portability', /\b(port|porting|portability|switch (my )?(insurer|insurance company)|move (my )?policy to)\b/],
+  ['add_member', /\b(add|adding|include|enrol+)\b.{0,40}\b(policy|insurance|cover|plan|floater|mother|father|mom|dad|parents|wife|husband|baby|newborn|child|in-?laws?)\b|\bnew ?born\b/],
+  ['rejected', REJECTED],
+  ['disclosure', /\b((didn'?t|did not|never|not|forgot to) (declare|disclose|tell|mention)|non-?disclosure|undeclared|undisclosed|wasn'?t declared|hid)\b/],
+  ['sum_left', /\b((sum insured|cover|coverage|amount|limit) (is )?(left|remaining|available|balance)|balance sum insured|remaining sum insured|how much (cover|sum insured) (do i have )?left)\b/],
+  ['network', /\b(which hospitals|cashless hospitals?|network hospitals?|list of hospitals|hospital list|panel hospitals?|empanell?ed|can i go to [a-z ]+ for cashless|is [a-z ]+ (a )?(network|cashless)|hospitals? (are |is )?(cashless|in (the )?network))\b/],
+  ['copay', /\bco-?pay(ment)?\b/],
+  ['room', /\b(room rent|room upgrade|upgrade (my |the |a )?room|bigger room|private room|room limit|room category|suite)\b/],
+  ['renewal', /\b(renew\w*|grace period|lapse\w*|missed .{0,15}premium|premium (is )?(due|unpaid|overdue))\b/],
+  ['documents', /\b(what documents|which documents|documents (are |do i )?(needed|required|need)|paperwork|documents for)\b/],
+  ['cashless_how', /\b(how (do|does|can|to) .{0,20}cashless|cashless (process|steps|work\w*|claim))\b/],
+  ['reimbursement_how', /\b(how (do|can|to) (i |we )?(file|make|claim|get|raise) .{0,20}(reimburs\w*|claim)|reimbursement (process|claim|steps)|claim process|how to claim)\b/],
+];
+
+// Common misspellings and Hinglish words mapped to the terms the rules use
+const NORMALISE: [RegExp, string][] = [
+  [/\binsu?ra?n[cs]e?\b|\binsurence\b|\binsurnace\b|\binsurace\b/g, 'insurance'],
+  [/\bpolicey\b|\bpolicy?s\b/g, 'policy'],
+  [/\bcoverd\b|\bcovred\b|\bcoverred\b|\bcovrd\b/g, 'covered'],
+  [/\bcl(ai|ia|a)me?\b/g, 'claim'],
+  [/\bhospit(a)?l\b|\bhospitel\b|\bhosptial\b|\bhospial\b/g, 'hospital'],
+  [/\bmater(i)?nity\b|\bmaternaty\b|\bmaternty\b/g, 'maternity'],
+  [/\bdiabet(is|ies|es)\b|\bdiabities\b|\bdibetes\b/g, 'diabetes'],
+  [/\bsu(r)?ga?ry\b|\bsurgary\b|\bsurgerry\b/g, 'surgery'],
+  [/\bcatarac\b|\bcatract\b/g, 'cataract'],
+  [/\bpre[- ]?exi?sting\b/g, 'pre-existing'],
+  [/\bkya\b|\bhai\b|\bhain\b|\bmera\b|\bmeri\b|\bmere\b|\bka\b|\bki\b|\bke\b/g, ' '],
+  [/\bbimar\b|\bbeemar\b/g, 'ill'],
+  [/\bpaisa\b|\bpaise\b/g, 'money'],
+];
+
+function normalise(message: string): string {
+  let t = message.toLowerCase().replace(/[’`]/g, "'");
+  for (const [re, to] of NORMALISE) t = t.replace(re, to);
+  return t.replace(/\s+/g, ' ').trim();
+}
 
 function expand(text: string): string {
   const t = text.toLowerCase();
   return EXPANSIONS.reduce((out, [re, add]) => (re.test(t) ? `${out} ${add}` : out), text);
 }
-// A plain question about a policy detail ("What is the grace period…?") rather than a situation
-const DETAIL_QUESTION = /^(what|who|when|which|how (long|much|many))\b/;
-// "my term life policy", "my health insurance" — the policy the question is about
-const SUBJECT: [ActiveCategory, RegExp][] = [
-  ['life', /\bmy (term life|term|life) (policy|insurance|plan|cover)\b/],
-  ['health', /\bmy health (policy|insurance|plan|cover)\b/],
-];
-// "How do I get cashless?", "How does my nominee make a claim?", "What documents are needed?"
-const CLAIM_PROCESS = /\b(how (do|does|can|would|should) (i|we|my \w+|the nominee) (make|file|raise|start|submit|get|do) (a |the )?(claim|cashless)|how (do|can|should) (i|we) claim|claim process|how to claim|claim steps|what documents|documents (are )?(needed|required)|cashless (process|steps|treatment)|reimbursement (claim|process)|what does (the|my) nominee need)\b/;
-const FOLLOW_UP = /^(and |what about|how about|same for|also)\b/;
-// Words that name the product rather than the situation. They are removed before clause matching so
-// that e.g. "my term life policy" doesn't match the term-life death benefit by its name alone.
-const GENERIC_WORDS = /\b(my|policy|policies|insurance|plan|life|term|health|cover|covered|does|will|is|it|how|much|cost|costs|extra|me)\b/g;
-
-function toolScenario(message: string): string {
-  const s = expand(message).toLowerCase().replace(GENERIC_WORDS, ' ').replace(/\s+/g, ' ').trim();
-  return s.length >= 2 ? s : message;
-}
 
 export const SUGGESTED_PROMPTS = [
-  'My father has been admitted after a cardiac emergency. Which policy can help, and what should I do?',
-  'Is maternity covered for my wife?',
-  'Compare my health policies',
-  'Who is the nominee on my term life policy, and what would my family receive?',
+  'My father is admitted in hospital for a heart problem',
+  'I have diabetes, if I get treated and pay cash will I be reimbursed?',
+  'Is maternity covered for my spouse?',
+  'What happens to my family if I die?',
 ];
 
 function detectCategories(t: string): ActiveCategory[] {
   return CATEGORY_CUES.filter(([, re]) => re.test(t)).map(([c]) => c);
 }
 
-// Multi-word clause topics ("critical illness", "room rent"). When a question names one, explanations use
-// only clauses tagged with that exact topic, so loosely related clauses don't creep in.
 const TOPIC_PHRASES = [...new Set(portfolio.policies.flatMap((p) => p.clauses.flatMap((c) => c.topics.filter((x) => x.includes(' ')))))].sort((a, b) => b.length - a.length);
 const clauseTopics = (clauseId: string) => portfolio.policies.flatMap((p) => p.clauses).find((c) => c.id === clauseId)?.topics ?? [];
-
-// Name words too common to identify a policy on their own
 const GENERIC_NAME_WORDS = new Set(['health', 'shield', 'plus', 'term', 'life', 'policy', 'plan', 'family', 'cover', 'insurance']);
 
-/** Policies the question names, in full ("Family Floater Shield") or by a distinctive word ("floater", "employer"). */
 function namedPolicies(t: string): Policy[] {
   return portfolio.policies.filter((p) => {
     const name = p.name.toLowerCase();
@@ -192,53 +142,17 @@ function matchedFacts(p: Policy, t: string) {
   });
 }
 
-function parseAmount(text: string): number | undefined {
-  const m = text.match(/(?:₹|rs\.?|inr|\$|usd|us\$)\s*([\d,]+(?:\.\d+)?)\s*(lakh|lakhs|lac|k)?|([\d,]{3,}(?:\.\d+)?)\s*(lakh|lakhs|lac|k|rupees)?/i);
-  if (!m) return undefined;
-  const num = parseFloat((m[1] ?? m[3]).replace(/,/g, ''));
-  const unit = (m[2] ?? m[4] ?? '').toLowerCase();
-  if (!num) return undefined;
-  return unit.startsWith('la') ? num * 100000 : unit === 'k' ? num * 1000 : num;
-}
-
 function topicWords(message: string): string[] {
   return message.split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}-]/gu, '')).filter((w) => w.length > 3).slice(0, 12);
 }
 
-const money = (cur: string, n: number) => `${cur}${n.toLocaleString('en-IN')}`;
-const fmtIso = (iso: string) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+// ---------- simple answers ----------
 
-// ---------- intents ----------
-
-type Intent = 'emergency' | 'compare' | 'claim_process' | 'explain' | 'prepare' | 'scenario';
-
-const INTENT_LABEL: Record<Intent, string> = {
-  emergency: 'Medical emergency',
-  compare: 'Compare policies',
-  claim_process: 'How to claim',
-  explain: 'Explain policy details',
-  prepare: 'Prepare / what to check',
-  scenario: 'Coverage check',
-};
-
-function resolveIntent(t: string, cats: ActiveCategory[], named: Policy[]): Intent {
-  if (EMERGENCY.test(t) && !NOT_URGENT.test(t)) return 'emergency';
-  if (COMPARE.test(t)) return 'compare';
-  if (CLAIM_PROCESS.test(t)) return 'claim_process';
-  if (EXPLAIN.test(t) || WHO_COVERED.test(t) || PERIOD_Q.test(t) || TOPIC_EXPLAIN.test(t)) return 'explain';
-  if (TYPE_ASK.filter(([, re]) => re.test(t)).length === 1 && !SCENARIO.test(t.replace(/not covered/, ''))) return 'explain';
-  if (PREPARE.test(t)) return 'prepare';
-  const targets = named.length ? named : portfolio.policies.filter((p) => (cats as Category[]).includes(p.category));
-  if (!SCENARIO.test(t) && (DETAIL_QUESTION.test(t) || targets.some((p) => matchedFacts(p, t).length))) return 'explain';
-  return 'scenario';
+function clarify(col: Collector, headline: string, suggestions: string[] = SUGGESTED_PROMPTS, keyPoints?: string[]): AgentAnswer {
+  return col.answer('', { headline, keyPoints, suggestions });
 }
 
-function clarify(col: Collector, head: string): AgentAnswer {
-  return col.answer(`${head}\n\nI answer questions about your health and term life policies. Try one of these:`, { suggestions: SUGGESTED_PROMPTS });
-}
-
-/** Policies a question is about: named ones, else the detected categories, else the best search matches. */
-function pickPolicies(col: Collector, message: string, cats: ActiveCategory[], named: Policy[]): string[] | null {
+function policiesFor(col: Collector, message: string, cats: ActiveCategory[], named: Policy[]): string[] | null {
   const search = col.call('searchPolicies', { query: message, category: cats.length === 1 ? cats[0] : undefined });
   const matches: { policyId: string; category: ActiveCategory; relevance: number }[] = search.matches ?? [];
   if (named.length) return named.map((p) => p.id);
@@ -255,62 +169,84 @@ function runCompare(col: Collector, message: string, cats: ActiveCategory[], nam
   let ids: string[];
   if (named.length >= 2) ids = named.map((p) => p.id);
   else if (cats.length) ids = portfolio.policies.filter((p) => (cats as Category[]).includes(p.category)).map((p) => p.id).slice(0, 4);
-  else return clarify(col, '**Which policies should I compare?**');
+  else return clarify(col, 'Which policies should I compare — your two health policies?', ['Compare my health policies', 'Compare my term life policies']);
   col.call('searchPolicies', { query: message, category: cats.length === 1 ? cats[0] : undefined });
   if (ids.length < 2) {
     const p = portfolio.policies.find((x) => x.id === ids[0])!;
-    return col.answer(
-      `**You have one ${CATEGORY_LABEL[p.category as ActiveCategory]} policy in your portfolio, so there's nothing to compare it with.**\n\n- Ask me to explain ${p.name} instead.`,
-      { suggestions: [`Explain my ${p.name} policy`] },
-    );
+    return col.answer('', {
+      headline: `You have one ${CATEGORY_LABEL[p.category as ActiveCategory]} policy, so there’s nothing to compare it with.`,
+      verdict: 'info',
+      suggestions: [`Explain my ${p.name} policy`, 'Compare my health policies'],
+    });
   }
   const cmp = col.call('comparePolicies', { policyIds: ids, criteria: [] });
-  if (!cmp.rows) return col.answer('**I couldn’t build that comparison from your policy data.**');
-  const label = cats.length === 1 ? `${CATEGORY_LABEL[cats[0]]} ` : '';
-  return col.answer(
-    `**Here's how your ${label}policies compare.**\n\n- Each row shows the matching clause from each policy.\n- "Not specified" means the data doesn't say — it is not a confirmed gap.\n- No single policy is "best"; it depends on who needs cover and for what.`,
-  );
+  if (!cmp.rows) return col.answer('', { headline: 'I couldn’t build that comparison from your policy data.', verdict: 'info' });
+  const policies = ids.map((id) => portfolio.policies.find((p) => p.id === id)!);
+  const health = policies.every((p) => p.category === 'health') && policies.length === 2;
+  if (!health) {
+    return col.answer('', { headline: `Here’s how your ${cats.length === 1 ? `${CATEGORY_LABEL[cats[0]]} ` : ''}policies compare.`, verdict: 'info', keyPoints: ['Each row shows the matching clause from each policy.', '“Not specified” means the policy data doesn’t say. It isn’t a confirmed gap.'] });
+  }
+  const g = policies.find((p) => clauseWith(p, 'condition', ['employment']))!;
+  const f = policies.find((p) => p !== g)!;
+  const fPed = clauseWith(f, 'waiting_period', ['pre-existing']);
+  const fMat = clauseWith(f, 'waiting_period', ['maternity']);
+  const gCard = clauseWith(g, 'limit', ['cardiac']);
+  const copay = g.clauses.find((c) => c.type === 'deductible' && c.percent);
+  const matEnds = fMat?.text.match(/(\d+) months, counted from (\d{4}-\d{2}-\d{2})/);
+  const matEnd = matEnds ? (() => { const d = new Date(matEnds[2] + 'T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() + Number(matEnds[1])); return d.toISOString().slice(0, 10); })() : undefined;
+  const father = g.insured.find((i) => /\(father\)/.test(i)) && !f.insured.some((i) => /\(father\)/.test(i));
+  return col.answer('', {
+    headline: `Use ${g.name} first for ${father ? 'your father, ' : ''}maternity and pre-existing conditions — ${f.name} has ${f.sumInsured >= 2 * g.sumInsured ? 'twice the cover' : 'more cover'} and stays if you change jobs.`,
+    verdict: 'info',
+    keyPoints: [
+      `Sum insured: ${inr(f.sumInsured)} on ${f.name}, ${inr(g.sumInsured)} on ${g.name}.`,
+      `${g.name}: day-one pre-existing and maternity cover${copay ? `, ${copay.percent}% co-pay for parents` : ''}${gCard?.amount ? `, cardiac procedures capped at ${inr(gCard.amount)}` : ''}.`,
+      `${f.name}: no co-pay or cardiac cap${fPed ? ', pre-existing wait already served' : ''}${matEnd ? `, maternity only from ${fmtDate(matEnd)}` : ''}.`,
+    ],
+    details: [{ id: 'compare-notes', title: 'How to read this comparison', body: '- Each row shows the matching clause from each policy.\n- “Not specified” means the policy data doesn’t say. It isn’t a confirmed gap.\n- No single policy is “best”. It depends on who needs cover and for what.' }],
+    suggestions: ['Is maternity covered for my spouse?', 'If I leave my job, do I lose the group health cover?', 'My father is admitted in hospital for a heart problem'],
+  });
 }
 
 function runExplain(col: Collector, message: string, t: string, cats: ActiveCategory[], named: Policy[]): AgentAnswer {
-  const ids = pickPolicies(col, message, cats, named);
-  if (!ids?.length) return clarify(col, '**Which policy should I explain?**');
+  const ids = policiesFor(col, message, cats, named);
+  if (!ids?.length) return clarify(col, 'Which policy should I explain — health or term life?', ['Explain my Family Floater Shield policy', 'Explain my Secure Term Plus policy']);
   const targets = ids.slice(0, 2);
   const many = targets.length > 1;
   const policies = targets.map((id) => portfolio.policies.find((p) => p.id === id)!);
   const source = '- From your policy schedule and clauses. Your insurer’s documents are the final word.';
+  const sug = policies.some((p) => p.category === 'life') ? ['What happens to my family if I die?', 'Can I change the nominee on my term policy?'] : ['Compare my health policies', 'Which hospitals in Pune are cashless?'];
 
-  // Who is insured: straight from the policy record
   if (WHO_COVERED.test(t)) {
     for (const id of targets) col.call('retrievePolicyEvidence', { policyId: id, topics: [] });
-    if (!many) return col.answer(`**${policies[0].name} covers ${policies[0].insured.join(', ')}.**\n\n${source}`);
-    return col.answer(`**Who each policy covers.**\n\n${policies.map((p) => `- **${p.name}:** ${p.insured.join(', ')}`).join('\n')}\n${source}`);
+    if (!many) return col.answer('', { headline: `${policies[0].name} covers ${policies[0].insured.join(', ')}.`, verdict: 'info', suggestions: sug });
+    return col.answer('', { headline: 'Who each policy covers:', verdict: 'info', keyPoints: policies.map((p) => `${p.name}: ${p.insured.join(', ')}.`), suggestions: ['Is my mother covered?', ...sug].slice(0, 3) });
   }
-  // Policy period / when cover ends
   if (PERIOD_Q.test(t)) {
     const lines: string[] = [];
     for (const p of policies) {
       const r = col.call('retrievePolicyEvidence', { policyId: p.id, topics: [] });
       const till = (r.policy?.keyFacts ?? []).filter((f: { label: string }) => /till|expires|until/i.test(f.label));
-      lines.push(`- **${p.name}:** current policy period ${fmtIso(p.startDate)} – ${fmtIso(p.renewalDate)}${till.map((f: { label: string; value: string }) => `; ${f.label.toLowerCase()} ${f.value}`).join('')}.`);
+      lines.push(`${p.name}: current period ${fmtDate(p.startDate)} – ${fmtDate(p.renewalDate)}${till.map((f: { label: string; value: string }) => `; ${f.label.toLowerCase()} ${f.value}`).join('')}.`);
     }
-    return col.answer(`**${many ? 'Policy periods' : `${policies[0].name}: renews on ${fmtIso(policies[0].renewalDate)}`}.**\n\n${lines.join('\n')}\n${source}`);
+    const p0 = policies[0];
+    const tillFact = p0.keyFacts.find((f) => /till/i.test(f.label));
+    const headline = many ? 'Policy periods:' : p0.category === 'life' && tillFact ? `${p0.name} covers you till ${tillFact.value.toLowerCase()}; the next premium is due ${fmtDate(p0.renewalDate)}.` : `${p0.name} renews on ${fmtDate(p0.renewalDate)}.`;
+    return col.answer('', { headline, verdict: 'info', keyPoints: lines, suggestions: sug });
   }
-  // One clause type ("What are the exclusions…?"): list them
   const typeAsk = TYPE_ASK.filter(([, re]) => re.test(t));
   if (typeAsk.length === 1 && !EXPLAIN.test(t)) {
     const [type, , label] = typeAsk[0];
     const lines: string[] = [];
     for (const p of policies) {
       const r = col.call('retrievePolicyEvidence', { policyId: p.id, topics: [] });
-      const items: EvidenceItem[] = (r.evidence ?? []).filter((e: EvidenceItem) => e.type === type);
+      const items: EvidenceItem[] = p.clauses.filter((c) => c.type === type).map((c) => r.evidence?.find((e: EvidenceItem) => e.clauseId === c.id) ?? { title: c.title, section: c.section, text: c.text } as EvidenceItem);
       if (!items.length) lines.push(`- **${p.name}:** none listed in the policy.`);
       for (const e of items) lines.push(`- ${many ? `**${p.name}** — ` : ''}**${e.title}** (${e.section}): ${e.text}`);
     }
-    return col.answer(`**${label} in ${policies.map((p) => p.name).join(' and ')}.**\n\n${lines.join('\n')}\n${source}`);
+    return col.structured(`**${label} in ${policies.map((p) => p.name).join(' and ')}.**\n\n${lines.join('\n')}`, { moreTitle: `All ${label.toLowerCase()}`, suggestions: sug });
   }
 
-  // A named multi-word topic across all candidate policies ("Do I have critical illness cover?")
   const phrase = TOPIC_PHRASES.find((ph) => t.includes(ph));
   if (phrase && !EXPLAIN.test(t) && !targets.some((id) => matchedFacts(portfolio.policies.find((p) => p.id === id)!, t).length)) {
     const lines: string[] = [];
@@ -322,8 +258,8 @@ function runExplain(col: Collector, message: string, t: string, cats: ActiveCate
       if (!exact.length) lines.push(`- **${name}:** no clause about ${phrase}.`);
       for (const e of exact.slice(0, 2)) { found.push(e); lines.push(`- **${name}** — ${e.title} (${e.section}): ${e.text}`); }
     }
-    const head = found.length === 1 ? `**${found[0].title} (${found[0].section}).**` : `**What your policies say about ${phrase}.**`;
-    return col.answer(`${head}\n\n${lines.join('\n')}\n${source}`);
+    const head = found.length === 1 ? `**${found[0].title}: ${found[0].text}**` : `**What your policies say about ${phrase}.**`;
+    return col.structured(`${head}\n\n${found.length === 1 ? '' : lines.join('\n')}`, { suggestions: sug });
   }
 
   const nameWords = new Set(portfolio.policies.flatMap((p) => p.name.toLowerCase().split(/\s+/)));
@@ -336,39 +272,40 @@ function runExplain(col: Collector, message: string, t: string, cats: ActiveCate
     if (!r.policy) continue;
     const pol = r.policy;
     const ev: EvidenceItem[] = r.evidence ?? [];
-    const facts: { label: string; value: string }[] = general ? [] : matchedFacts(portfolio.policies.find((p) => p.id === id)!, t);
+    const policy = portfolio.policies.find((p) => p.id === id)!;
+    const facts: { label: string; value: string }[] = general ? [] : matchedFacts(policy, t);
     if (facts.length) {
-      if (!head) head = many ? `**Here's what your ${CATEGORY_LABEL[pol.category as ActiveCategory]} policies say.**` : `**${facts[0].label}: ${facts[0].value}.**`;
+      if (!head) head = many ? `**Here’s what your ${CATEGORY_LABEL[pol.category as ActiveCategory]} policies say.**` : `**${policy.name} — ${facts[0].label.toLowerCase()}: ${facts[0].value}.**`;
       for (const f of facts.slice(many ? 0 : 1)) lines.push(`- ${many ? `${pol.name} — ` : ''}${f.label}: ${f.value}`);
       if (!many && ev[0]) lines.push(`- ${ev[0].title} (${ev[0].section}): ${ev[0].text}`);
     } else if (!general && ev.length) {
-      if (!head) head = many ? `**Here's what your ${CATEGORY_LABEL[pol.category as ActiveCategory]} policies say.**` : `**${ev[0].title} (${ev[0].section}).**`;
-      lines.push(`- ${many ? `${pol.name}: ` : ''}${ev[0].text}`);
-      // e.g. death benefit + accidental death rider: show a second benefit of the same kind
+      if (!head) head = many ? `**Here’s what your ${CATEGORY_LABEL[pol.category as ActiveCategory]} policies say.**` : `**${ev[0].title}: ${ev[0].text}**`;
+      if (many) lines.push(`- ${pol.name}: ${ev[0].text}`);
       if (!many && ev[1] && ev[0].type === 'benefit' && ev[1].type === 'benefit') lines.push(`- Also: ${ev[1].title} (${ev[1].section}): ${ev[1].text}`);
     } else if (!general) {
       lines.push(`- ${pol.name}: not mentioned in the policy.`);
     } else {
-      const pick = (types: string[]) => ev.find((e) => types.includes(e.type));
-      if (!head) head = targets.length === 1 ? `**${pol.name} at a glance.**` : `**Here's what your ${CATEGORY_LABEL[pol.category as ActiveCategory]} policies say.**`;
+      const pick = (types: string[]) => policy.clauses.find((e) => types.includes(e.type));
+      if (!head) head = targets.length === 1 ? `**${pol.name} covers ${pol.insured.join(', ')} for ${pol.sumInsured}.**` : `**Here’s what your ${CATEGORY_LABEL[pol.category as ActiveCategory]} policies say.**`;
       const prefix = targets.length > 1 ? `${pol.name}: ` : '';
-      lines.push(`- ${prefix}Covers ${pol.insured.join(', ')} · ${pol.sumInsured}.`);
+      if (targets.length > 1) lines.push(`- ${prefix}Covers ${pol.insured.join(', ')} · ${pol.sumInsured}.`);
       const benefit = pick(['benefit']);
       const exclusion = pick(['exclusion']);
       const watch = pick(['waiting_period', 'deductible', 'limit', 'condition']);
       if (benefit) lines.push(`- ${prefix}Main benefit: ${benefit.title} (${benefit.section}).`);
       if (exclusion) lines.push(`- ${prefix}Key exclusion: ${exclusion.title} (${exclusion.section}).`);
       if (watch && targets.length === 1) lines.push(`- Watch for: ${watch.title} (${watch.section}).`);
+      if (targets.length === 1) for (const k of policy.keyFacts.slice(0, 1)) lines.push(`- ${k.label}: ${k.value}.`);
     }
   }
-  if (!head) return clarify(col, '**I couldn’t find that detail in your policies.** “Not found” here means the data doesn’t say — not that it’s excluded.');
+  if (!head) return clarify(col, 'I couldn’t find that in your policies. That means the policy data doesn’t say, not that it’s excluded.');
   lines.push(source);
-  return col.answer(`${head}\n\n${lines.join('\n')}`);
+  return col.structured(`${head}\n\n${lines.join('\n')}`, { suggestions: sug });
 }
 
 function runPrepare(col: Collector, message: string, cats: ActiveCategory[], named: Policy[]): AgentAnswer {
-  const ids = pickPolicies(col, message, cats, named);
-  if (!ids?.length) return clarify(col, '**I couldn’t tell which policy you’re preparing to use.**');
+  const ids = policiesFor(col, message, cats, named);
+  if (!ids?.length) return clarify(col, 'Which policy are you preparing to use — health or term life?');
   const lines: string[] = [];
   for (const id of ids.slice(0, 2)) {
     const r = col.call('retrievePolicyEvidence', { policyId: id, topics: [] });
@@ -376,135 +313,146 @@ function runPrepare(col: Collector, message: string, cats: ActiveCategory[], nam
   }
   col.call('generateActionPlan', { scenario: message, policyIds: ids.slice(0, 2), urgent: false });
   const names = ids.slice(0, 2).map((id) => portfolio.policies.find((p) => p.id === id)!.name).join(' and ');
-  return col.answer(`**Here's what to check in ${names}.**\n\n${lines.slice(0, 4).join('\n')}`);
-}
-
-function runClaimProcess(col: Collector, message: string, cats: ActiveCategory[], named: Policy[]): AgentAnswer {
-  const ids = pickPolicies(col, message, cats, named);
-  if (!ids?.length) return clarify(col, '**Which policy is the claim for — health or term life?**');
-  const targets = ids.slice(0, 2);
-  const lines: string[] = [];
-  for (const id of targets) {
-    const r = col.call('retrievePolicyEvidence', { policyId: id, topics: ['claim', 'process', 'documents', 'cashless', 'reimbursement', 'nominee'] });
-    const claim: EvidenceItem | undefined = (r.evidence ?? []).find((e: EvidenceItem) => e.type === 'claim_process');
-    if (claim) lines.push(`- **${claim.policyName}:** ${claim.text} (${claim.section})`);
-  }
-  col.call('generateActionPlan', { scenario: message, policyIds: targets, urgent: false });
-  const names = targets.map((id) => portfolio.policies.find((p) => p.id === id)!.name).join(' and ');
-  if (!lines.length) return col.answer(`**Your policy data doesn’t describe a claim process for ${names}.** Contact the insurer for the steps.`);
-  return col.answer(`**How to claim under ${names}.**\n\n${lines.join('\n')}\n- Your insurer decides the claim; these steps come from the policy wording.`);
-}
-
-function runScenario(col: Collector, message: string, t: string, cats: ActiveCategory[], named: Policy[], emergency: boolean): AgentAnswer {
-  const useCats: ActiveCategory[] = emergency ? ['health'] : cats;
-  const ids = pickPolicies(col, message, useCats, named);
-  if (!ids?.length) return clarify(col, '**I couldn’t match this to one of your policies.**');
-
-  const scenario = toolScenario(message);
-  for (const id of ids) col.call('retrievePolicyEvidence', { policyId: id, topics: topicWords(scenario) });
-  const evalRes = col.call('evaluateCoverage', { policyIds: ids, scenario });
-  const results: CoverageResult[] = evalRes.results ?? [];
-  const relevant = results.filter((r) => r.status !== 'Not found').map((r) => r.policyId);
-  const actIds = relevant;
-
-  let costLine = '';
-  if (WANTS_COST.test(t) && actIds.length) {
-    const c: CostResult = col.call('calculatePotentialCost', { policyId: actIds[0], scenario, estimatedBill: parseAmount(message) });
-    if (c?.sufficientData) costLine = `- Estimated out-of-pocket: ${money(c.currency, c.estimatedOutOfPocket ?? 0)} (assumptions below).`;
-    else if (c?.missing?.length) costLine = `- For a cost estimate I need: ${c.missing[c.missing.length - 1].toLowerCase()}.`;
-  }
-  if (emergency || (WANTS_PLAN.test(t) && actIds.length)) col.call('generateActionPlan', { scenario: message, policyIds: actIds, urgent: emergency });
-
-  const best = results.find((r) => r.status === 'Supported') ?? results.find((r) => r.status === 'Uncertain') ?? results[0];
-  const disagree = results.some((r) => r.status === 'Supported') && results.some((r) => r.conflicting.length > 0);
-  const head = emergency
-    ? '**Get medical care first. Then use the insurance steps below.**'
-    : disagree
-      ? '**Your policies differ on this — check each one below.**'
-      : best?.status === 'Supported'
-      ? `**Likely covered under ${best.policyName} — conditions apply.**`
-      : best?.status === 'Uncertain'
-        ? '**Possibly covered — it depends on details the policy data doesn’t settle.**'
-        : '**Your policies don’t show cover for this.**';
-  const guarantee = GUARANTEE.test(t) ? "**I can't guarantee approval — only your insurer decides.** Here's what the policy data says:\n\n" : '';
-  // Each policy's verdict and the conditions to check live on its coverage card (the same result objects
-  // the answer carries). The headline text only adds what the cards don't show: policies the app hides
-  // because another policy applies, and the cost line.
-  for (const r of results) {
-    const watch = r.status === 'Not found' && r.supporting.length === 0 && r.conflicting.length === 0
-      ? r.conditions.filter((c) => c.type === 'condition')
-      : r.conditions.filter((c) => c.type !== 'waiting_period' || r.status === 'Supported');
-    const extra = watch.filter((c) => !r.reasoning.includes(c.section));
-    if (extra.length) r.reasoning += ` Check: ${extra.slice(0, 2).map((c) => `${c.title} (${c.section})`).join(', ')}.`;
-  }
-  const shownAsCards = results.some((r) => r.status !== 'Not found') ? results.filter((r) => r.status !== 'Not found') : results;
-  const lines = results.filter((r) => !shownAsCards.includes(r)).slice(0, 3).map((r) => `- **${r.policyName}: ${r.status}.** ${r.reasoning}`);
-  if (costLine) lines.push(costLine);
-  return col.answer(`${guarantee}${head}${lines.length ? `\n\n${lines.join('\n')}` : ''}`, { emergency });
+  return col.structured(`**Here’s what to check in ${names}.**\n\n${lines.slice(0, 4).join('\n')}`);
 }
 
 // ---------- input checks (run before any tool) ----------
 
 function guard(message: string, insuranceRelated: boolean): AgentAnswer | null {
-  const blocked = (text: string, detail: string): AgentAnswer => ({
-    text,
+  const blocked = (headline: string, detail: string): AgentAnswer => ({
+    headline,
+    text: '',
     steps: [{ tool: 'guardrail', label: 'Safety check', detail, ok: true }],
     coverage: [],
     evidence: [],
-    suggestions: SUGGESTED_PROMPTS,
+    suggestions: SUGGESTED_PROMPTS.slice(0, 3),
   });
   const letters = message.replace(/[^\p{L}]/gu, '');
-  if (letters.length < 2) return blocked("**I didn't catch that.**\n\nTry one of these:", 'Unclear input');
-  if (/(.)\1{9,}/.test(message) || (letters.length > 20 && !/[aeiou]/i.test(letters))) return blocked("**That doesn't look like a question.**\n\nDescribe what happened in a sentence, or try:", 'Unreadable input');
-  if (JAILBREAK.test(message)) return blocked(`**I can't change how I work.**\n\nI only answer from the your ${portfolio.policies.length} health and term life policies. Try:`, 'Manipulation attempt blocked');
-  if (ABUSE.test(message) && !insuranceRelated) return blocked("**I'm here to help with your insurance.**\n\nTell me what happened, or try:", 'Abusive input');
+  if (letters.length < 2) return blocked('I didn’t catch that — try one of these:', 'Unclear input');
+  if (/(.)\1{9,}/.test(message) || (letters.length > 20 && !/[aeiou]/i.test(letters)) || (letters.length >= 4 && !/\s/.test(message.trim()) && !/[aeiou]{1}/i.test(letters))) return blocked('That doesn’t look like a question — describe what happened in a sentence, or try:', 'Unreadable input');
+  if (JAILBREAK.test(message)) return blocked(`I can’t change how I work — I only answer from your ${portfolio.policies.length} health and term life policies.`, 'Manipulation attempt blocked');
+  if (ABUSE.test(message) && !insuranceRelated) return blocked('I’m here to help with your insurance — tell me what happened, or try:', 'Abusive input');
   return null;
 }
 
 // ---------- entry ----------
 
+const route = (col: Collector, detail: string) => col.note({ tool: 'resolveIntent', label: 'Matching your question to a supported topic', detail, ok: true });
+
+function lifeTopic(t: string): LifeTopic | 'explain' {
+  const c = readLifeContext(t);
+  if (REJECTED.test(t) && /\bclaim\b/.test(t)) return 'rejected';
+  if (c.suicide) return 'suicide';
+  if (NOMINEE_CHANGE.test(t)) return 'nominee_change';
+  if (LIFE_NO_HEALTH.test(t) && !/\b(die|death|died|pass(ed)? away)\b/.test(t)) return 'no_health';
+  if (/\b(have|has|is there|any|got)\b.{0,30}\brider\b/.test(t) && !c.intoxication) return 'rider';
+  if (c.disclosureTopic) return 'disclosure';
+  if (c.missedPremium) return 'premium';
+  if (LIFE_CLAIM.test(t)) return 'claim';
+  if (PERIOD_Q.test(t)) return 'explain';
+  if (c.abroad && /\b(die|death|died|dies|pass(ed)? away|killed)\b/.test(t)) return 'abroad';
+  if (RIDER_Q.test(t) && !/\b(die|death|died|dies|pass(ed)? away|receive|get|pay)\b/.test(t)) return 'rider';
+  if (c.accident) return 'accident';
+  if (DEATH_Q.test(t)) return 'payout';
+  return 'explain';
+}
+
 export async function runAgent(message: string, emit: (s: AgentStep) => void): Promise<AgentAnswer> {
-  const t = message.toLowerCase();
+  const t = normalise(message);
   const subject = SUBJECT.filter(([, re]) => re.test(t)).map(([c]) => c);
-  const cats = subject.length ? subject : detectCategories(t);
+  let cats = subject.length ? subject : detectCategories(t);
   const named = namedPolicies(t);
+  for (const p of named) if (!cats.includes(p.category as ActiveCategory)) cats = [...cats, p.category as ActiveCategory];
   const outOfScope = OUT_OF_SCOPE.test(t);
-  const insuranceRelated = cats.length > 0 || named.length > 0 || outOfScope || INSURANCE_WORDS.test(t);
+  const s = readSituation(t);
+  // Something medical is happening, or a treatment is named: that's a health question even without insurance words
+  if (!cats.includes('health') && (s.topic || s.payCash || ['admitted', 'emergency_now', 'incident', 'discharged'].includes(s.care))) cats = [...cats, 'health'];
+  const insuranceRelated = cats.length > 0 || named.length > 0 || outOfScope || INSURANCE_WORDS.test(t) || VAGUE.test(t);
 
   const blocked = guard(message, insuranceRelated);
   if (blocked) { emit(blocked.steps[0]); return blocked; }
 
   const col = new Collector(emit);
   if (FOLLOW_UP.test(t) && cats.length === 0 && named.length === 0) {
-    col.note({ tool: 'resolveIntent', label: 'Matching your question to a supported topic', detail: 'Follow-up without context', ok: true });
-    return clarify(col, '**Please ask the full question.** I answer each question on its own and don’t carry context from earlier messages — e.g. “Is maternity covered for my wife?”');
+    route(col, 'Follow-up without context');
+    return clarify(col, 'Could you ask the full question? I answer each message on its own.', ['Is maternity covered for my spouse?', 'Is my father covered?', 'Is my mother covered?']);
   }
-  if (GREETING.test(t.trim())) {
-    col.note({ tool: 'resolveIntent', label: 'Matching your question to a supported topic', detail: 'Greeting', ok: true });
-    return col.answer(`**Hi ${portfolio.user.name.split(' ')[0]}.** I can answer questions about your health and term life policies, with the clause that supports each answer. Try one of these:`, { suggestions: SUGGESTED_PROMPTS });
+  if (GREETING.test(t)) {
+    route(col, 'Greeting');
+    return /thank|thx|ok|cool|great/.test(t)
+      ? col.answer('', { headline: 'You’re welcome — ask me anything about your health or term life policies.', suggestions: SUGGESTED_PROMPTS.slice(0, 3) })
+      : col.answer('', { headline: `Hi ${portfolio.user.name.split(' ')[0]} — ask me anything about your health or term life policies, and I’ll show the clause behind each answer.`, suggestions: SUGGESTED_PROMPTS.slice(0, 3) });
   }
   if (!insuranceRelated) {
-    col.note({ tool: 'resolveIntent', label: 'Matching your question to a supported topic', detail: 'Not an insurance question', ok: true });
-    return clarify(col, '**I can only help with your health and term life policies.**');
+    route(col, 'Not an insurance question');
+    return clarify(col, 'I can only help with your health and term life policies.');
   }
   if (outOfScope && !cats.length && !named.length) {
-    col.note({ tool: 'resolveIntent', label: 'Matching your question to a supported topic', detail: 'Outside health and term life', ok: true });
-    return clarify(col, '**I cover health and term life insurance only.** I can’t answer questions about car, travel, home or personal accident insurance.');
+    route(col, 'Outside health and term life');
+    return clarify(col, 'I can help with health and term life insurance only, not car, travel, home or personal accident.', ['Compare my health policies', 'What happens to my family if I die?']);
   }
   if (UNSUPPORTED.test(t)) {
-    col.note({ tool: 'resolveIntent', label: 'Matching your question to a supported topic', detail: 'Not supported', ok: true });
-    return clarify(col, '**I can’t buy, change or file anything with an insurer.** I only explain the policies already in your portfolio.');
+    route(col, 'Not supported');
+    return clarify(col, 'I can’t buy, change or file anything with an insurer — I explain the policies you already have.', ['Compare my health policies', 'Can I port my family floater to another insurer?', 'What happens to my family if I die?']);
   }
-  if (outOfScope) col.scopeNote = 'I cover health and term life only, so any car, travel, home or personal accident part of the question isn’t answered.';
-  const intent = resolveIntent(t, cats, named);
-  col.note({ tool: 'resolveIntent', label: 'Matching your question to a supported topic', detail: INTENT_LABEL[intent], ok: true });
+  if (outOfScope) col.scopeNote = 'I can only answer the health and term life part of this. Car, travel, home and personal accident cover aren’t included.';
 
-  switch (intent) {
-    case 'compare': return runCompare(col, message, cats, named);
-    case 'claim_process': return runClaimProcess(col, message, cats, named);
-    case 'explain': return runExplain(col, message, t, cats, named);
-    case 'prepare': return runPrepare(col, message, cats, named);
-    case 'emergency': return runScenario(col, message, t, cats, named, true);
-    default: return runScenario(col, message, t, cats, named, false);
+  const healthy = cats.includes('health');
+
+  if (COMPARE.test(t)) { route(col, 'Compare policies'); return runCompare(col, message, cats.length ? cats : ['health'], named); }
+  if (GUARANTEE_ONLY.test(t) && !s.topic && s.care === 'none' && !s.persons.some((p) => p !== 'self')) { route(col, 'Guarantee request'); return runHealthTopic(col, t, 'guarantee', s); }
+
+  // Term life
+  const lifeAsked = cats.includes('life') && (!cats.includes('health') || subject.includes('life') || /\b(term|life (policy|insurance|cover)|nominee|suicide|section 45|critical illness)\b/.test(t) || (/\b(die|death|died|pass(ed)? away)\b/.test(t) && s.care === 'none'));
+  if (lifeAsked) {
+    const k = lifeTopic(t);
+    if (k !== 'explain') { route(col, `Term life: ${k.replace('_', ' ')}`); return runLife(col, t, k); }
+    route(col, 'Explain policy details');
+    return runExplain(col, message, t, ['life'], named.filter((p) => p.category === 'life'));
+  }
+
+  // Vague questions: ask one clarifying question with options
+  if (VAGUE.test(t) && !s.topic && s.care === 'none' && !named.length) {
+    route(col, 'Needs one detail');
+    return clarify(col, 'Covered for what, and for whom? Pick one or describe it:', ['Is a hospital stay covered for my father?', 'Is maternity covered for my spouse?', 'Is cataract surgery covered for me?']);
+  }
+
+  // Health topics answered from one or two clauses
+  const topicHit = HEALTH_TOPICS.find(([k, re]) => re.test(t) && topicApplies(k, s, t));
+  if (topicHit) { route(col, `Health: ${topicHit[0].replace('_', ' ')}`); return runHealthTopic(col, t, topicHit[0], s); }
+
+  // Policy details ("What's the sum insured on…?", "Tell me about…")
+  const targets = named.length ? named : portfolio.policies.filter((p) => (cats as Category[]).includes(p.category));
+  const asksDetail = EXPLAIN.test(t) || WHO_COVERED.test(t) || PERIOD_Q.test(t) || TYPE_ASK.some(([, re]) => re.test(t) && !s.topic)
+    || (DETAIL_QUESTION.test(t) && !s.topic && s.care === 'none' && !s.persons.some((p) => p !== 'self') && targets.some((p) => matchedFacts(p, t).length));
+  if (asksDetail) { route(col, 'Explain policy details'); return runExplain(col, message, t, cats, named); }
+  if (PREPARE.test(t)) { route(col, 'Prepare / what to check'); return runPrepare(col, message, cats, named); }
+
+  // A health situation or coverage question
+  if (healthy || s.persons.length) {
+    route(col, s.care === 'emergency_now' ? 'Medical emergency' : s.care === 'admitted' || s.care === 'incident' ? 'In hospital' : s.care === 'planned' ? 'Planned treatment' : s.care === 'discharged' || s.payCash ? 'Reimbursement' : 'Coverage check');
+    return runHealth(col, t, s, named.filter((p) => p.category === 'health').map((p) => p.id));
+  }
+  route(col, 'Needs one detail');
+  return clarify(col, 'Is this about your health policies or your term life policy?', ['Compare my health policies', 'What happens to my family if I die?', 'Is maternity covered for my spouse?']);
+}
+
+/** A clause-level topic only applies when the message isn't really describing a treatment situation. */
+function topicApplies(k: HealthTopic, s: Situation, t: string): boolean {
+  const situation = s.care !== 'none' || !!s.topic || s.payCash;
+  switch (k) {
+    case 'job': case 'portability': case 'sum_left': case 'rejected': return true;
+    case 'add_member': return !situation || /\b(newborn|new born)\b/.test(t);
+    case 'disclosure': return !s.topic;
+    case 'network': return !s.topic && (s.care === 'none' || s.care === 'planned') && !s.payCash;
+    case 'copay': return !s.bill && s.care === 'none' && !s.topic;
+    case 'room': return !s.bill && s.care === 'none';
+    case 'renewal': return !situation;
+    case 'documents': return !s.persons.some((p) => p !== 'self') || s.care === 'none';
+    case 'cashless_how': return s.care === 'none' && !s.topic;
+    case 'reimbursement_how': return !situation && !s.persons.some((p) => p !== 'self');
+    case 'guarantee': return false;
   }
 }
+
+type Situation = ReturnType<typeof readSituation>;

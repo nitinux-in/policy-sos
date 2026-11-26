@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUp, CalendarClock, ChevronRight, FileText, HeartPulse, Lock, MessageCircleQuestion, Receipt, Search, ShieldCheck, TriangleAlert, X } from 'lucide-react';
+import { ArrowUp, CalendarClock, ChevronRight, FileText, HeartPulse, Lock, Receipt, Search, ShieldCheck, TriangleAlert, X } from 'lucide-react';
 import type { Clause, Policy, PortfolioData } from '../shared/types';
 import { ACTIVE_CATEGORIES, DEMO_TODAY, type ActiveCategory } from '../shared/demo';
 import { CATEGORY, categoryMeta, daysUntil, fmtDate, fmtMoney } from './format';
 import { CLAIM_SHORTCUTS, FEATURED } from './prompts';
-import { CategoryIcon, Mascot, MascotAvatar, Panel, Pill, Stat, StatusPill, surface, TONE, useMediaQuery } from './ui';
+import { CategoryIcon, Mascot, MascotAvatar, Panel, Pill, SEND_BUTTON, Stat, StatusPill, surface, TONE, useMediaQuery } from './ui';
 import type { Tab } from './App';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
@@ -72,8 +72,8 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
         <Panel title="Your policies" action={viewAll('View all', () => onNavigate('policies'))} className="@4xl:col-span-7">
           <ul className="px-2">
             {data.policies.map((p) => (
-              <li key={p.id} className="flex items-center gap-1 rounded-2xl transition-colors hover:bg-muted/60">
-                <button type="button" onClick={() => onOpenPolicy(p)} data-policy-id={p.id} className="focus-ring-inset flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-3 py-3 text-left">
+              <li key={p.id} className="flex items-center gap-1 rounded-card transition-colors hover:bg-muted/60">
+                <button type="button" onClick={() => onOpenPolicy(p)} data-policy-id={p.id} className="focus-ring-inset flex min-w-0 flex-1 items-center gap-3 rounded-card px-3 py-3 text-left">
                   <CategoryIcon c={p.category} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[14px] font-semibold">{p.name}</span>
@@ -84,8 +84,8 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
                     <span className="block text-[11px] text-muted-foreground">{categoryMeta(p.category).label}</span>
                   </span>
                 </button>
-                <Button type="button" variant="ghost" size="icon" onClick={() => onAsk(explainPrompt(p))} aria-label={`Ask about ${p.name}`} className="mr-1 size-10 text-link hover:text-link">
-                  <MessageCircleQuestion className="size-[18px]" aria-hidden="true" />
+                <Button type="button" variant="ghost" size="icon" onClick={() => onAsk(explainPrompt(p))} aria-label={`Ask about ${p.name}`} className="mr-1 size-10 hover:bg-accent/60">
+                  <MascotAvatar className="size-8" />
                 </Button>
               </li>
             ))}
@@ -96,8 +96,8 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
           <ul className="px-2">
             {renewals.map((p) => (
               <li key={p.id}>
-                <button type="button" onClick={() => onOpenPolicy(p)} data-policy-id={p.id} className="focus-ring-inset flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors hover:bg-muted/60">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-muted text-center leading-none" aria-hidden="true">
+                <button type="button" onClick={() => onOpenPolicy(p)} data-policy-id={p.id} className="focus-ring-inset flex w-full items-center gap-3 rounded-card px-3 py-3 text-left transition-colors hover:bg-muted/60">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-card bg-muted text-center leading-none" aria-hidden="true">
                     <span>
                       <span className="block text-[14px] font-semibold">{new Date(p.renewalDate + 'T00:00:00').getDate()}</span>
                       <span className="block text-[10px] uppercase text-muted-foreground">{new Date(p.renewalDate + 'T00:00:00').toLocaleDateString('en-IN', { month: 'short' })}</span>
@@ -157,40 +157,59 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
   );
 }
 
-/** The home page's way into the assistant: a pill search bar and quick questions. On wide screens it sits on a sky card with the mascot. */
+/**
+ * The home page's way into the assistant, on a sky card. Phones: a compact card (avatar, title, search bar and
+ * one swipeable row of quick questions). Wide screens: a larger hero with the full mascot.
+ */
 function AskCard({ onAsk, className = '' }: { onAsk: (q?: string) => void; className?: string }) {
   const [q, setQ] = useState('');
   return (
     <section
       aria-labelledby="ask-card"
-      className={`relative min-w-0 overflow-hidden @4xl:rounded-3xl @4xl:bg-gradient-to-br @4xl:from-sky-from @4xl:to-sky-to @4xl:p-7 @4xl:shadow-card ${className}`}
+      className={`relative min-w-0 overflow-hidden rounded-hero bg-gradient-to-br from-sky-from to-sky-to p-4 shadow-card @4xl:p-7 ${className}`}
     >
       <Mascot className="animate-float absolute -bottom-3 right-2 hidden w-[190px] @4xl:block @6xl:w-[220px]" />
       <div className="relative @4xl:max-w-[62%]">
-        <h2 id="ask-card" className="sr-only text-[24px] font-medium leading-tight tracking-tight @4xl:not-sr-only @6xl:text-[28px]">What would you like to check today?</h2>
-        <p className="mt-1 hidden text-[14px] text-ink-2 @4xl:block">Ask about a situation or a policy — answers cite the policy wording.</p>
+        <div className="flex items-center gap-3 @4xl:block">
+          <MascotAvatar className="size-10 ring-2 ring-card @4xl:hidden" />
+          <div className="min-w-0">
+            <h2 id="ask-card" className="text-[16px] font-semibold leading-tight tracking-tight @4xl:text-[24px] @4xl:font-medium @6xl:text-[28px]">
+              <span className="@4xl:hidden">Ask Ditto Assistant</span>
+              <span className="hidden @4xl:inline">What would you like to check today?</span>
+            </h2>
+            <p className="mt-0.5 text-[13px] leading-snug text-ink-2 @4xl:mt-1 @4xl:text-[14px]">
+              <span className="@4xl:hidden">Answers quote your policy wording</span>
+              <span className="hidden @4xl:inline">Ask about a situation or a policy — answers cite the policy wording.</span>
+            </p>
+          </div>
+        </div>
         <form
-          className="flex items-center gap-2 rounded-full bg-card p-1.5 pl-2 shadow-card transition-shadow focus-within:ring-2 focus-within:ring-ring @4xl:mt-5"
+          className="mt-3 flex items-center gap-2 rounded-full bg-card p-1.5 pl-4 shadow-card transition-shadow focus-within:ring-2 focus-within:ring-ring @4xl:mt-5 @4xl:pl-2"
           onSubmit={(e) => { e.preventDefault(); if (q.trim()) onAsk(q.trim()); }}
         >
-          <MascotAvatar className="size-9" />
+          <MascotAvatar className="hidden size-9 @4xl:inline-grid" />
           <label htmlFor="ask-card-input" className="sr-only">Your question</label>
+          {/* 16px on phones so iOS Safari doesn't zoom the page when the field is focused */}
           <Input
             id="ask-card-input"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             maxLength={1500}
             autoComplete="off"
-            placeholder="Ask anything about your cover"
-            className="h-11 min-w-0 flex-1 border-0 bg-transparent px-1 text-[15px] shadow-none placeholder:text-muted-foreground focus-visible:ring-0 md:text-[15px] dark:bg-transparent"
+            enterKeyHint="send"
+            placeholder="Ask about your cover"
+            className="h-10 min-w-0 flex-1 border-0 bg-transparent px-0 text-[16px] shadow-none placeholder:text-muted-foreground focus-visible:ring-0 md:text-[15px] @4xl:h-11 @4xl:px-1 dark:bg-transparent"
           />
-          <Button type="submit" size="icon" disabled={!q.trim()} aria-label="Ask" className="size-11 shrink-0 transition-[background-color,transform] active:scale-90 bg-ink text-white hover:bg-ink/85 disabled:bg-ink/40 dark:bg-primary dark:hover:bg-primary-strong">
+          <Button type="submit" size="icon" disabled={!q.trim()} aria-label="Ask" className={`${SEND_BUTTON} size-10 @4xl:size-11`}>
             <ArrowUp className="size-5" aria-hidden="true" />
           </Button>
         </form>
       </div>
-      {/* Phones: one swipeable row; wide screens: chips wrap under the search bar */}
-      <ul className="no-scrollbar relative -mx-4 mt-3 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 @4xl:mx-0 @4xl:mt-4 @4xl:max-w-[62%] @4xl:flex-wrap @4xl:overflow-visible @4xl:px-0" aria-label="Quick questions">
+      {/* Phones: one swipeable row that runs to the card's edges and fades out there; wide screens: chips wrap */}
+      <ul
+        className="no-scrollbar fade-x relative -mx-4 mt-3 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 py-1 @4xl:mx-0 @4xl:mt-4 @4xl:max-w-[62%] @4xl:flex-wrap @4xl:overflow-visible @4xl:px-0 @4xl:[-webkit-mask-image:none] @4xl:[mask-image:none]"
+        aria-label="Quick questions"
+      >
         {FEATURED.map((s) => (
           <li key={s.q} className="shrink-0 snap-start">
             <m.button
@@ -275,8 +294,8 @@ function PolicyTable({ policies, onOpen, onAsk }: { policies: Policy[]; onOpen: 
                 <TableCell className="text-ink-2">{fmtDate(p.renewalDate)}</TableCell>
                 <TableCell><StatusPill p={p} /></TableCell>
                 <TableCell className="pr-4 text-right">
-                  <Button type="button" variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onAsk(explainPrompt(p)); }} aria-label={`Ask about ${p.name}`} className="h-10 text-link hover:text-link">
-                    <MessageCircleQuestion className="size-4" aria-hidden="true" /> Ask
+                  <Button type="button" variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onAsk(explainPrompt(p)); }} aria-label={`Ask about ${p.name}`} className="h-10 pl-1.5! text-link hover:text-link">
+                    <MascotAvatar className="size-7" /> Ask
                   </Button>
                 </TableCell>
               </TableRow>
@@ -288,7 +307,7 @@ function PolicyTable({ policies, onOpen, onAsk }: { policies: Policy[]; onOpen: 
       <ul className="px-2 @xl:hidden">
         {policies.map((p) => (
           <li key={p.id}>
-            <button type="button" onClick={() => onOpen(p)} data-policy-id={p.id} className="focus-ring-inset flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors hover:bg-muted/60">
+            <button type="button" onClick={() => onOpen(p)} data-policy-id={p.id} className="focus-ring-inset flex w-full items-center gap-3 rounded-card px-3 py-3 text-left transition-colors hover:bg-muted/60">
               <CategoryIcon c={p.category} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[14px] font-semibold">{p.name}</span>
@@ -403,7 +422,7 @@ export function PolicySheet({ policy: p, onClose, onAsk }: { policy: Policy | nu
       <SheetContent
         onCloseAutoFocus={restoreFocus}
         side={wide ? 'right' : 'bottom'}
-        className={wide ? 'w-full gap-0 border-0 sm:max-w-[500px] md:m-3 md:h-[calc(100%-1.5rem)] md:rounded-3xl' : 'max-h-[90dvh] gap-0 rounded-t-3xl border-0'}
+        className={wide ? 'w-full gap-0 border-0 sm:max-w-[500px] md:m-3 md:h-[calc(100%-1.5rem)] md:rounded-hero' : 'max-h-[90dvh] gap-0 rounded-t-hero border-0'}
       >
         {pol && (
           <>
@@ -419,19 +438,19 @@ export function PolicySheet({ policy: p, onClose, onAsk }: { policy: Policy | nu
               <p className="mt-3 text-[14px] text-ink-2">{pol.summary}</p>
               <dl className="mt-4 grid grid-cols-2 gap-2">
                 {pol.keyFacts.map((f) => (
-                  <div key={f.label} className="rounded-2xl bg-muted p-3">
+                  <div key={f.label} className="rounded-tile bg-muted p-3">
                     <dt className="text-[12px] text-muted-foreground">{f.label}</dt>
                     <dd className="mt-0.5 text-[14px] font-semibold">{f.value}</dd>
                   </div>
                 ))}
               </dl>
-              <dl className="mt-2 space-y-1.5 rounded-2xl bg-muted p-3.5 text-[13px]">
+              <dl className="mt-2 space-y-1.5 rounded-tile bg-muted p-3.5 text-[13px]">
                 <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted-foreground">Covers</dt><dd>{pol.insured.join(', ')}</dd></div>
                 <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted-foreground">Period</dt><dd>{fmtDate(pol.startDate)} – {fmtDate(pol.renewalDate)}</dd></div>
                 {pol.claimContact && <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted-foreground">Claims</dt><dd>{pol.claimContact}</dd></div>}
               </dl>
               <Button type="button" onClick={() => onAsk(explainPrompt(pol))} className="mt-5 w-full">
-                <MessageCircleQuestion className="size-[18px]" aria-hidden="true" /> Explain this policy
+                <MascotAvatar className="-ml-1 size-7 ring-2 ring-white/70" /> Explain this policy
               </Button>
 
               <h3 className="mt-8 text-[16px] font-semibold">Policy clauses</h3>
@@ -439,7 +458,7 @@ export function PolicySheet({ policy: p, onClose, onAsk }: { policy: Policy | nu
                 {groups.map((g) => (
                   <section key={g.t} aria-label={TYPE_LABEL[g.t]}>
                     <h4 className="mb-1 text-[13px] font-semibold text-muted-foreground">{TYPE_LABEL[g.t]}</h4>
-                    <Accordion type="multiple" className="rounded-2xl bg-muted px-3.5">
+                    <Accordion type="multiple" className="rounded-tile bg-muted px-3.5">
                       {g.items.map((c) => (
                         <AccordionItem key={c.id} value={c.id} className="border-line">
                           <AccordionTrigger className="min-h-12 items-center py-2.5 text-[14px] hover:no-underline">
@@ -477,7 +496,7 @@ export function ClaimsScreen({ data, onAsk }: { data: PortfolioData; onAsk: (q?:
     <div className="animate-rise">
       <PageTitle title="Claims" sub="Step-by-step claim help and past claims" />
       <div className="grid items-start gap-4 @4xl:grid-cols-3">
-        <section aria-labelledby="start-claim" className="rounded-3xl bg-gradient-to-br from-sky-from to-sky-to p-5 shadow-card @4xl:order-2">
+        <section aria-labelledby="start-claim" className="rounded-card bg-gradient-to-br from-sky-from to-sky-to p-5 shadow-card @4xl:order-2">
           <div className="flex items-center gap-3">
             <MascotAvatar className="size-10" />
             <h2 id="start-claim" className="text-[16px] font-semibold">Start a claim</h2>
@@ -489,7 +508,7 @@ export function ClaimsScreen({ data, onAsk }: { data: PortfolioData; onAsk: (q?:
           <ul className="mt-4 space-y-2">
             {CLAIM_SHORTCUTS.map((s) => (
               <li key={s.q}>
-                <button type="button" onClick={() => onAsk(s.q)} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-2xl bg-card px-4 py-3 text-left text-[14px] font-medium shadow-card transition-colors hover:bg-card/80">
+                <button type="button" onClick={() => onAsk(s.q)} className="flex min-h-12 w-full items-center justify-between gap-2 rounded-tile bg-card px-4 py-3 text-left text-[14px] font-medium shadow-card transition-colors hover:bg-card/80">
                   {s.label}
                   <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 </button>
@@ -573,7 +592,7 @@ export function DocumentsScreen({ data }: { data: PortfolioData }) {
         <Accordion type="multiple" className="px-2">
           {data.documents.map((d) => (
             <AccordionItem key={d.id} value={d.id} className="border-line-2">
-              <AccordionTrigger className="min-h-16 items-center gap-3 rounded-2xl px-3 py-3 hover:bg-muted/60 hover:no-underline">
+              <AccordionTrigger className="min-h-16 items-center gap-3 rounded-tile px-3 py-3 hover:bg-muted/60 hover:no-underline">
                 <span className="flex flex-1 items-center gap-3">
                   <DocIcon trusted={d.trusted} />
                   <span className="min-w-0">
@@ -587,7 +606,7 @@ export function DocumentsScreen({ data }: { data: PortfolioData }) {
               </AccordionTrigger>
               <AccordionContent className="px-3 sm:pl-[64px]">
                 {!d.trusted && (
-                  <p className="mb-3 flex items-start gap-2 rounded-2xl bg-warn-bg p-3 text-[13px] font-medium text-warn">
+                  <p className="mb-3 flex items-start gap-2 rounded-tile bg-warn-bg p-3 text-[13px] font-medium text-warn">
                     <Lock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                     Untrusted upload. The assistant treats this as plain text, ignores any instructions inside it and never uses it as policy evidence.
                   </p>

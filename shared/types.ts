@@ -128,7 +128,62 @@ export interface AgentStep {
   ok: boolean;
 }
 
+/**
+ * The direct answer, in one glance. `yes`/`no` only when the policy data settles it; `depends` when the answer
+ * hinges on something the person must confirm; `info` for explanations with nothing to decide.
+ */
+export type Verdict = 'yes' | 'likely' | 'partial' | 'depends' | 'unlikely' | 'no' | 'info';
+
+/**
+ * How sure the local engine is of its reading of the policy wording, built from explicit checks (never a made-up
+ * percentage). Each factor is one thing that could change the outcome at claim time.
+ */
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
+export type FactorStatus =
+  | 'clear' // verified from the policy data, and it supports the answer
+  | 'check' // the person needs to confirm something (e.g. "Was the condition declared when you bought the policy?")
+  | 'risk' // a known issue in the policy data that can reduce or block the claim
+  | 'unknown'; // the policy data doesn't say
+
+export interface ConfidenceFactor {
+  id: string; // stable slug, e.g. 'waiting-period', 'disclosure', 'network-hospital'
+  label: string; // short, e.g. "Waiting period"
+  status: FactorStatus;
+  summary: string; // one short line, e.g. "36-month wait for pre-existing conditions ends 1 Jul 2029"
+  detail?: string; // longer explanation (markdown), shown on demand
+  clauseIds?: string[]; // evidence clauses this factor relies on
+  /**
+   * For `risk` factors: whether the issue can stop the claim ('blocks', e.g. a waiting period not yet served)
+   * or only lowers the payout ('reduces', e.g. a 20% co-pay). Known deductions don't lower confidence.
+   */
+  impact?: 'blocks' | 'reduces';
+}
+
+export interface Confidence {
+  level: ConfidenceLevel;
+  label: string; // e.g. "High confidence", "Depends on 2 things"
+  reason: string; // one line: why this level
+  factors: ConfidenceFactor[];
+}
+
+/** Longer explanation folded away under the answer (rendered as an accordion item). */
+export interface AnswerSection {
+  id: string;
+  title: string; // e.g. "How a reimbursement claim works"
+  summary?: string; // one line shown next to the title
+  body: string; // markdown
+}
+
 export interface AgentAnswer {
+  /** The direct answer in one sentence, e.g. "Yes — Employer Group Health covers your father's admission." */
+  headline?: string;
+  verdict?: Verdict;
+  /** 2–4 short, scannable points: what matters right now. */
+  keyPoints?: string[];
+  confidence?: Confidence;
+  /** Longer explanations, folded away by default. */
+  details?: AnswerSection[];
+  /** Short body (markdown). Kept brief now that headline/keyPoints carry the answer; may be empty. */
   text: string;
   steps: AgentStep[];
   coverage: CoverageResult[];

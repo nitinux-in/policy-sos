@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FileText, LayoutGrid, MessageCircleQuestion, Receipt, Shield } from 'lucide-react';
+import { FileText, LayoutGrid, Receipt, Shield, type LucideIcon } from 'lucide-react';
 import type { Policy, PortfolioData } from '../shared/types';
 import { ClaimsScreen, DocumentsScreen, OverviewScreen, PoliciesScreen, PolicySheet } from './screens';
 import { AssistantView } from './Assistant';
-import { DittoLogo, PersonAvatar, ThemeToggle, useMediaQuery, useTheme } from './ui';
+import { DittoLogo, MascotAvatar, PersonAvatar, ThemeToggle, useMediaQuery, useTheme } from './ui';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -14,9 +14,9 @@ const loadMotionFeatures = () => import('./motion-features').then((mod) => mod.d
 
 export type Tab = 'overview' | 'assistant' | 'policies' | 'claims' | 'documents';
 
-const NAV: { id: Tab; label: string; icon: typeof LayoutGrid }[] = [
+const NAV: { id: Tab; label: string; icon?: LucideIcon }[] = [
   { id: 'overview', label: 'Home', icon: LayoutGrid },
-  { id: 'assistant', label: 'Assistant', icon: MessageCircleQuestion },
+  { id: 'assistant', label: 'Assistant' }, // shown with the mascot avatar
   { id: 'policies', label: 'Policies', icon: Shield },
   { id: 'claims', label: 'Claims', icon: Receipt },
   { id: 'documents', label: 'Documents', icon: FileText },
@@ -111,7 +111,7 @@ export default function App() {
                       {/* The highlight glides from the previous tab to this one */}
                       {tab === t.id && <m.span layoutId="nav-pill" transition={SPRING} className="absolute inset-0 rounded-full bg-ink dark:bg-accent" aria-hidden="true" />}
                       <span className="relative flex items-center gap-2">
-                        {t.id === 'assistant' && <MessageCircleQuestion className="size-4" aria-hidden="true" />}
+                        {t.id === 'assistant' && <MascotAvatar className="-ml-2 size-7" />}
                         {t.label}
                       </span>
                     </button>
@@ -171,9 +171,9 @@ export default function App() {
                         aria-current={current ? 'page' : undefined}
                         whileTap={{ scale: 0.9 }}
                         transition={SPRING}
-                        className="grid size-12 place-items-center rounded-full bg-primary text-white shadow-float transition-colors hover:bg-primary-strong"
+                        className="grid size-[52px] place-items-center rounded-full bg-primary p-[3px] shadow-float transition-colors hover:bg-primary-strong"
                       >
-                        <MessageCircleQuestion className="size-[22px]" aria-hidden="true" />
+                        <MascotAvatar className="size-full" />
                       </m.button>
                     </li>
                   );
@@ -187,7 +187,7 @@ export default function App() {
                       className={`relative flex h-14 w-full flex-col items-center justify-center gap-0.5 rounded-full text-[12px] font-medium transition-colors duration-200 ${current ? 'text-white' : 'text-white/60 hover:text-white'}`}
                     >
                       {current && <m.span layoutId="phone-nav-pill" transition={SPRING} className="absolute inset-x-0.5 inset-y-1 rounded-full bg-white/12" aria-hidden="true" />}
-                      <t.icon className="relative size-5" strokeWidth={current ? 2.2 : 1.8} aria-hidden="true" />
+                      {t.icon && <t.icon className="relative size-5" strokeWidth={current ? 2.2 : 1.8} aria-hidden="true" />}
                       <span className="relative">{id === 'documents' ? 'Docs' : t.label}</span>
                     </button>
                   </li>
@@ -209,9 +209,9 @@ function LoadingState() {
   return (
     <div className="space-y-4 pt-4" aria-busy="true" aria-label="Loading your policies">
       <Skeleton className="h-10 w-48 rounded-full" />
-      <Skeleton className="h-56 rounded-3xl" />
+      <Skeleton className="h-56 rounded-hero" />
       <div className="grid grid-cols-2 gap-3 @4xl:grid-cols-4">
-        {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-32 rounded-3xl" />)}
+        {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-32 rounded-card" />)}
       </div>
     </div>
   );

@@ -80,7 +80,11 @@ export function StatusPill({ p }: { p: Policy }) {
 
 // ---------- dashboard building blocks (shadcn Card) ----------
 
-export const surface = 'rounded-3xl border-0 bg-card shadow-card';
+export const surface = 'rounded-card border-0 bg-card shadow-card';
+
+/** Round send button: blue when there's something to send; a calm blue tint (not a greyed-out control) when empty. */
+export const SEND_BUTTON =
+  'shrink-0 bg-primary text-white transition-[background-color,color,transform] hover:bg-primary-strong active:scale-90 disabled:bg-accent disabled:text-link disabled:opacity-100';
 
 /** A titled dashboard card. The body is a container-query context so content adapts to the card's own width. */
 export function Panel({ title, action, children, className = '', bodyClassName = '' }: { title: string; action?: ReactNode; children: ReactNode; className?: string; bodyClassName?: string }) {

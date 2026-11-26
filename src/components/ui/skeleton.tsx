@@ -4,7 +4,8 @@ function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="skeleton"
-      className={cn("animate-pulse rounded-md bg-accent", className)}
+      // Custom radius tokens (rounded-card etc.) aren't merged by cn, so only add the default when none is given
+      className={cn("animate-pulse bg-accent", !/\brounded-/.test(className ?? "") && "rounded-tile", className)}
       {...props}
     />
   )

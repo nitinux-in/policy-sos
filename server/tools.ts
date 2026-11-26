@@ -17,6 +17,8 @@ import type {
   PortfolioData,
 } from '../shared/types.js';
 import { ACTIVE_CATEGORIES, DEMO_TODAY, scopePortfolio } from '../shared/demo.js';
+import { assessHealth, assessLife, orderFactors, type LifeAssessment, type PolicyAssessment } from './confidence.js';
+import { readLifeContext, readSituation, type Person } from './situation.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 /** Active product data: health and term life only. Legacy categories in the JSON are never loaded into tools or UI. */
@@ -171,6 +173,14 @@ export const schemas = {
     scenario: z.string().min(2).max(1000),
     policyIds: z.array(z.string().max(40)).max(8).default([]),
     urgent: z.boolean().default(false),
+    /** A focused plan for one claim route; omitted = the general plan. */
+    mode: z.enum(['cashless', 'planned', 'reimbursement', 'death_claim']).optional(),
+    hospital: z.string().max(80).optional(),
+  }),
+  assessClaimFactors: z.object({
+    policyIds: z.array(z.string().max(40)).min(1).max(8),
+    scenario: z.string().min(2).max(1000),
+    persons: z.array(z.enum(['self', 'spouse', 'son', 'daughter', 'father', 'mother', 'sibling', 'grandparent', 'inlaw', 'other'])).max(4).default([]),
   }),
 };
 
@@ -267,7 +277,7 @@ function waitingPeriodNote(c: EvidenceItem): string {
       : `${c.title} (${c.section}): the ${length[1]}-${length[2].replace(/s$/, '')} wait counted from ${fmtDay(start)} ends on ${fmtDay(endIso)} — not yet completed as of ${fmtDay(DEMO_TODAY)}.`;
   }
   if (length) return `${c.title} (${c.section}): ${length[1]}-${length[2].replace(/s$/, '')} waiting period. The policy data doesn’t record when this cover started, so completion can’t be checked.`;
-  return `${c.title} (${c.section}): a waiting period applies. Completion can’t be checked from the policy data.`;
+  return `${c.title} (${c.section}): a waiting period applies. The policy data can’t show whether it’s over.`;
 }
 
 const PERSON_WORDS = ['father', 'mother', 'parents', 'spouse', 'wife', 'husband', 'son', 'daughter', 'child', 'self', 'me'];
@@ -405,7 +415,7 @@ export function comparePolicies(args: z.infer<typeof schemas.comparePolicies>): 
       }),
     };
   });
-  const notes = ['Values come only from your policy documents. "Not specified" means the data does not say — not that the benefit is absent.'];
+  const notes = ['Values come only from your policy documents. “Not specified” means the policy data doesn’t say. It doesn’t mean the benefit is missing.'];
   if (!sameCategory) notes.push('These policies are in different categories, so they cover different risks and are not substitutes.');
   return {
     criteria: rows.map((r) => r.criterion),
@@ -433,7 +443,7 @@ export function calculatePotentialCost(args: z.infer<typeof schemas.calculatePot
   if (!bill) {
     base.missing.push('Estimated bill / repair quote amount');
     if (p.category === 'motor') base.missing.push('Garage or surveyor repair estimate');
-    if (p.category === 'health') base.missing.push('Hospital estimate or final bill, room category chosen');
+    if (p.category === 'health') base.missing.push('The hospital estimate or final bill, and the room category');
     const fixed = p.clauses.filter((c) => c.type === 'deductible' || (c.type === 'limit' && c.amount));
     base.assumptions.push(...fixed.map((c) => `Known from policy: ${c.title} — ${c.text}`));
     return base;
@@ -472,31 +482,36 @@ export function calculatePotentialCost(args: z.infer<typeof schemas.calculatePot
     out += amt;
     payable -= amt;
   }
-  if (payable > p.sumInsured) {
-    base.lines.push({ label: 'Above sum insured', amount: payable - p.sumInsured });
-    out += payable - p.sumInsured;
-    payable = p.sumInsured;
+  // Sum insured left this policy year, after claims already paid from it
+  const used = portfolio.claims.filter((c) => c.policyId === p.id && c.date >= p.startDate && c.date <= p.renewalDate).reduce((s2, c) => s2 + (c.amountSettled ?? c.amountClaimed), 0);
+  const left = p.sumInsured - used;
+  if (payable > left) {
+    base.lines.push({ label: used ? 'Above sum insured left this year' : 'Above sum insured', amount: payable - left });
+    out += payable - left;
+    payable = left;
   }
   base.sufficientData = true;
   base.estimatedOutOfPocket = out;
   base.estimatedInsurerShare = payable;
   base.assumptions.push(
-    'The full bill is admissible (no non-medical or non-covered items).',
-    'No other limits apply beyond those found in the policy data.',
-    'The claim is accepted by the insurer — this estimate is not a guarantee.',
+    'Every item on the bill is payable (no non-medical or excluded items).',
+    'No limits apply beyond those in the policy data.',
+    'The insurer accepts the claim. This is an estimate, not a guarantee.',
   );
-  if (p.category === 'health') base.assumptions.push('Room category is within the policy room-rent limit (otherwise proportionate deductions may apply).');
+  if (p.category === 'health') base.assumptions.push('The room is within the room rent limit. A costlier room would reduce the whole claim.');
+  if (used) base.assumptions.push(`₹${used.toLocaleString('en-IN')} of the sum insured was already used by earlier claims this policy year.`);
   if (p.category === 'motor') base.assumptions.push('Zero-depreciation add-on applies, so no depreciation is deducted.');
   return base;
 }
 
 export function generateActionPlan(args: z.infer<typeof schemas.generateActionPlan>): ActionPlan {
   const policies = args.policyIds.map(policyById).filter(Boolean) as Policy[];
+  if (args.mode) return focusedPlan(args.mode, policies, args.hospital);
   const steps: ActionPlan['steps'] = [];
   const t = norm(args.scenario);
   const medical = /hospital|admit|cardiac|heart|emergency|injur|accident|icu|chest pain|unconscious|bleeding/.test(t);
   if (args.urgent && medical) {
-    steps.push({ text: 'Get care first — call 112', detail: 'Never delay treatment for insurance checks.' });
+    steps.push({ text: 'Get care first: call 112', detail: 'Don’t wait on insurance to start treatment.' });
   }
   for (const p of policies) {
     const claim = p.clauses.find((c) => c.type === 'claim_process');
@@ -524,6 +539,91 @@ export function generateActionPlan(args: z.infer<typeof schemas.generateActionPl
   };
 }
 
+/** Short, clause-based steps for one claim route. Only steps that come from the policy data. */
+function focusedPlan(mode: 'cashless' | 'planned' | 'reimbursement' | 'death_claim', policies: Policy[], hospital?: string): ActionPlan {
+  const p = policies[0];
+  const steps: ActionPlan['steps'] = [];
+  if (!p) return { title: 'Your next steps', urgent: false, steps };
+  const proc = p.clauses.find((c) => c.type === 'claim_process');
+  const deadlines = p.clauses.find((c) => c.type === 'condition' && c.topics.includes('intimation'));
+  const cashless = p.clauses.find((c) => c.type === 'benefit' && c.topics.includes('cashless'));
+  const tpa = /TPA/.test(cashless?.text ?? '') ? 'TPA' : 'insurer';
+  const hours = cashless?.text.match(/within (\d+) hours/i)?.[1];
+  const preauth = (deadlines?.text ?? cashless?.text ?? '').match(/(\d+) hours before/i)?.[1];
+  const days = proc?.text.match(/within (\d+) days of discharge/i)?.[1];
+  if (mode === 'cashless') {
+    steps.push({ text: `Show your ${p.name} health card at the ${hospital ? `${hospital} ` : 'hospital’s '}insurance (TPA) desk`, detail: `Policy no. ${p.policyNumber} · patient ID` });
+    if (hours) steps.push({ text: `Tell the ${tpa === 'TPA' ? 'insurer’s claims desk (TPA)' : 'insurer'} within ${hours} hours of admission`, detail: p.claimContact });
+    steps.push({ text: 'Keep the discharge summary, bills and reports', detail: 'You’ll need them if any part is paid as reimbursement.' });
+  } else if (mode === 'planned') {
+    steps.push({ text: 'Choose a network hospital for cashless', detail: p.clauses.find((c) => c.type === 'condition' && c.topics.includes('network'))?.text });
+    steps.push({ text: `Request pre-authorisation${preauth ? ` at least ${preauth} hours before admission` : ''}`, detail: `Through the hospital’s TPA desk · ${p.claimContact ?? p.provider}` });
+    steps.push({ text: 'Bring your health card and photo ID on the day' });
+  } else if (mode === 'reimbursement') {
+    steps.push({ text: 'Gather your documents', detail: proc?.text.replace(/^.*?Reimbursement:\s*/i, '').replace(/^Intimate[^.]*\.\s*/i, '') });
+    steps.push({ text: `Submit the claim${days ? ` within ${days} days of discharge` : ''}`, detail: p.claimContact });
+    if (/post-hospitalisation bills within (\d+) days/i.test(deadlines?.text ?? '')) steps.push({ text: 'Send follow-up bills separately', detail: deadlines!.text.match(/post-hospitalisation bills within \d+ days[^.]*/i)![0] });
+  } else {
+    steps.push({ text: `Tell ${p.provider}`, detail: p.claimContact });
+    steps.push({ text: 'Submit the claim documents', detail: proc?.text });
+    steps.push({ text: 'Track the settlement', detail: p.clauses.find((c) => c.topics.includes('claim settlement'))?.text });
+  }
+  return { title: 'Your next steps', urgent: false, steps };
+}
+
+/** Coverage card for one assessed policy, from its factors. */
+function toCoverage(p: Policy, a: PolicyAssessment): CoverageResult {
+  const ev = (id?: string) => { const c = id ? p.clauses.find((x) => x.id === id) : undefined; return c ? toEvidence(p, c) : undefined; };
+  const clauseIds = [...new Set(a.factors.flatMap((f) => f.clauseIds ?? []))];
+  const all = clauseIds.map(ev).filter(Boolean) as EvidenceItem[];
+  const main = a.mainClause ? toEvidence(p, a.mainClause) : undefined;
+  const status: CoverageResult['status'] = a.outcome === 'covered' ? 'Supported' : a.outcome === 'not_mentioned' ? 'Uncertain' : 'Not found';
+  const blocker = a.factors.find((f) => f.status === 'risk' && f.impact !== 'reduces');
+  const open = a.factors.filter((f) => f.status === 'check' || f.status === 'unknown');
+  const reasoning = a.outcome === 'covered'
+    ? `Covered${main ? ` under ${main.section}` : ''}.${a.factors.some((f) => f.status === 'risk') ? ' Deductions apply.' : ''}${open.length ? ` ${open.length} thing${open.length > 1 ? 's' : ''} to check.` : ''}`
+    : blocker ? `${blocker.summary}.` : (a.factors.find((f) => f.status === 'unknown')?.summary ?? 'Not covered') + '.';
+  return {
+    policyId: p.id,
+    policyName: p.name,
+    category: p.category,
+    status,
+    reasoning,
+    supporting: a.outcome === 'covered' && main && main.type === 'benefit' ? [main] : [],
+    conflicting: a.outcome === 'excluded' || a.outcome === 'waiting' ? (main ? [main] : []) : [],
+    conditions: a.outcome === 'not_insured' ? [] : all.filter((e) => e.clauseId !== main?.clauseId && e.type !== 'benefit'),
+    unknowns: a.outcome === 'not_insured' ? [] : [...open.map((f) => f.summary), 'Final decision rests with the insurer after documents and assessment'],
+  };
+}
+
+/**
+ * Works out every factor that could change a claim for each policy (and each person), from the policy data and
+ * the fixed demo date. Health policies get the health checks; term life gets the life checks.
+ */
+export function assessClaimFactors(args: z.infer<typeof schemas.assessClaimFactors>) {
+  const situation = readSituation(args.scenario);
+  const persons: Person[] = args.persons.length ? args.persons : situation.persons.length ? situation.persons : ['self'];
+  const health: PolicyAssessment[] = [];
+  const life: LifeAssessment[] = [];
+  const coverage: CoverageResult[] = [];
+  for (const id of args.policyIds) {
+    const p = policyById(id);
+    if (!p) continue;
+    if (p.category === 'life') {
+      const a = assessLife(p, readLifeContext(args.scenario));
+      life.push({ ...a, factors: orderFactors(a.factors) });
+      continue;
+    }
+    for (const person of persons) {
+      const a = assessHealth(p, person, { situation, claims: portfolio.claims });
+      a.factors = orderFactors(a.factors);
+      health.push(a);
+      if (person === persons[0]) coverage.push(toCoverage(p, a));
+    }
+  }
+  return { situation, persons, health, life, coverage };
+}
+
 function dedupe<T extends { text: string }>(arr: T[]): T[] {
   const seen = new Set<string>();
   return arr.filter((x) => (seen.has(x.text) ? false : (seen.add(x.text), true)));
@@ -533,11 +633,12 @@ function dedupe<T extends { text: string }>(arr: T[]): T[] {
 
 export const TOOL_LABELS: Record<ToolName, string> = {
   searchPolicies: 'Searching your policies',
-  retrievePolicyEvidence: 'Reviewing relevant clauses',
-  evaluateCoverage: 'Checking coverage conditions',
+  retrievePolicyEvidence: 'Reading the relevant clauses',
+  evaluateCoverage: 'Checking cover conditions',
   comparePolicies: 'Comparing policies',
-  calculatePotentialCost: 'Estimating possible costs',
-  generateActionPlan: 'Preparing next steps',
+  calculatePotentialCost: 'Estimating your share of the bill',
+  generateActionPlan: 'Listing your next steps',
+  assessClaimFactors: 'Checking waiting periods, disclosure, hospitals and limits',
 };
 
 export function runTool(name: string, rawArgs: unknown): { ok: boolean; result: unknown; detail?: string } {
@@ -550,11 +651,17 @@ export function runTool(name: string, rawArgs: unknown): { ok: boolean; result: 
     const a = parsed.data as never;
     switch (name as ToolName) {
       case 'searchPolicies': { const r = searchPolicies(a); return { ok: true, result: r, detail: r.matches.length ? `${r.matches.length} match${r.matches.length > 1 ? 'es' : ''}: ${r.matches.slice(0, 3).map((m) => m.name).join(', ')}` : 'No matching policy' }; }
-      case 'retrievePolicyEvidence': { const r = retrievePolicyEvidence(a); return { ok: !('error' in r), result: r, detail: r.evidence && r.policy ? `${r.evidence.length} clause(s) from ${r.policy.name}` : undefined }; }
+      case 'retrievePolicyEvidence': { const r = retrievePolicyEvidence(a); return { ok: !('error' in r), result: r, detail: r.evidence && r.policy ? `${r.evidence.length} clause${r.evidence.length === 1 ? '' : 's'} from ${r.policy.name}` : undefined }; }
       case 'evaluateCoverage': { const r = evaluateCoverage(a); return { ok: true, result: r, detail: r.results.map((x) => `${x.policyName}: ${x.status}`).join(' · ') }; }
       case 'comparePolicies': { const r = comparePolicies(a); return { ok: !('error' in r), result: r, detail: 'rows' in r ? `${r.policies.length} policies × ${r.rows.length} criteria` : undefined }; }
-      case 'calculatePotentialCost': { const r = calculatePotentialCost(a); return { ok: !('error' in r), result: r, detail: 'sufficientData' in r ? (r.sufficientData ? 'Estimate prepared with assumptions' : 'Not enough data for an estimate') : undefined }; }
+      case 'calculatePotentialCost': { const r = calculatePotentialCost(a); return { ok: !('error' in r), result: r, detail: 'sufficientData' in r ? (r.sufficientData ? 'Estimate ready, based on stated assumptions' : 'Not enough detail for an estimate') : undefined }; }
       case 'generateActionPlan': { const r = generateActionPlan(a); return { ok: true, result: r, detail: `${r.steps.length} steps` }; }
+      case 'assessClaimFactors': {
+        const r = assessClaimFactors(a);
+        const all = [...r.health.map((x) => ({ name: x.policyName, fs: x.factors })), ...r.life.map((x) => ({ name: x.policyName, fs: x.factors }))];
+        const detail = all.map((x) => `${x.name}: ${x.fs.length} checks${x.fs.some((f) => f.status === 'risk' && f.impact !== 'reduces') ? ', at least 1 could block the claim' : ''}`).filter((v, i, arr) => arr.indexOf(v) === i).join(' · ');
+        return { ok: true, result: r, detail };
+      }
     }
   } catch (e) {
     return { ok: false, result: { error: `Tool failed: ${(e as Error).message}` } };

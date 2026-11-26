@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { ArrowUp, ArrowUpRight, CalendarClock, ChevronRight, Search, TriangleAlert } from 'lucide-react';
 import { m } from 'motion/react';
 import type { Policy, PortfolioData } from '../shared/types';
-import { coverageMatrix } from '../shared/insights';
+import { coverageMatrix, summaryFigures } from '../shared/insights';
 import { daysUntil, fmtDate, fmtMoney } from './format';
 import { HOME_CHIPS } from './prompts';
 import { Mascot, MascotAvatar, Panel, SEND_BUTTON, surface } from './ui';
@@ -48,6 +48,8 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
   const money = (n: number) => fmtMoney({ currency: 'INR' }, n, true);
   const first = data.user.name.split(' ')[0];
   const people = coverageMatrix(data).people;
+  const fig = summaryFigures(data);
+  const leftPct = Math.round((fig.healthCoverLeft / Math.max(1, fig.healthCoverTotal)) * 100);
 
   return (
     <m.div initial="hidden" animate="show" variants={stagger(0.08)} className="space-y-4 pt-2 @4xl:pt-4">
@@ -57,27 +59,37 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
         <NextRenewal policy={renewals[0]} onOpen={onOpenPolicy} className="hidden @4xl:col-span-4 @4xl:flex" />
       </m.div>
 
-      {/* One strip of figures with hairline dividers (2 × 2 on phones) */}
+      {/* One strip of figures; dividers stop short of the edges (2 × 2 on phones) */}
       <m.section variants={rise} aria-label="Summary" className={`${surface} grid grid-cols-2 overflow-hidden @4xl:grid-cols-4`}>
-        {[
-          { label: 'Health cover', value: money(health.reduce((s, p) => s + p.sumInsured, 0)), sub: `${health.length} plans · ${health.map((p) => money(p.sumInsured)).join(' + ')}` },
-          { label: 'Term life cover', value: life.length ? money(life.reduce((s, p) => s + p.sumInsured, 0)) : '—', sub: life[0] ? covers(life[0]) : 'No term plan' },
-          { label: 'People covered', value: String(people.length), sub: people.map((x) => x.name.split(' ')[0]).join(', ') },
-          { label: 'Claims settled', value: `${settled.length} of ${data.claims.length}`, sub: settled.length ? `${money(settled.reduce((s, c) => s + (c.amountSettled ?? 0), 0))} paid out` : 'None yet' },
-        ].map((f, i) => (
-          <div
-            key={f.label}
-            className={`min-w-0 border-line/70 px-4 py-3.5 @4xl:px-5 @4xl:py-4 ${i === 0 ? 'border-r @max-4xl:border-b' : ''} ${i === 1 ? '@max-4xl:border-b @4xl:border-r' : ''} ${i === 2 ? 'border-r' : ''}`}
-          >
-            <p className="text-[12px] text-muted-foreground max-md:text-[11.5px]">{f.label}</p>
-            <p className="figure mt-1 text-[24px] max-md:text-[20px]">{f.value}</p>
-            <p className="mt-0.5 truncate text-[12px] text-muted-foreground max-md:text-[11.5px]">{f.sub}</p>
+        <Figure label="Health cover" value={money(fig.healthCoverTotal)} divider="right-bottom">
+          <div className="mt-2 flex items-center gap-2">
+            <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${money(fig.healthCoverLeft)} of ${money(fig.healthCoverTotal)} left this year`}>
+              <div className="h-full rounded-full bg-primary" style={{ width: `${leftPct}%` }} />
+            </div>
+            <span className="tnum shrink-0 text-[11.5px] text-muted-foreground">{money(fig.healthCoverLeft)} left</span>
           </div>
-        ))}
+        </Figure>
+        <Figure label="Term life cover" value={life.length ? money(life.reduce((s, p) => s + p.sumInsured, 0)) : '—'} divider="bottom-desk-right">
+          <p className="mt-2 truncate text-[12px] text-muted-foreground max-md:text-[11.5px]">{life[0] ? covers(life[0]) : 'No term plan'}</p>
+        </Figure>
+        <Figure label="People covered" value={String(people.length)} divider="right">
+          <div className="mt-2 flex items-center">
+            <span className="flex -space-x-1.5" aria-hidden="true">
+              {people.map((x) => (
+                <span key={x.key} className="grid size-6 place-items-center rounded-full bg-accent text-[10px] font-semibold text-link ring-2 ring-card">{x.name[0]}</span>
+              ))}
+            </span>
+            <span className="ml-2 truncate text-[12px] text-muted-foreground max-md:hidden">{people.map((x) => x.name.split(' ')[0]).join(', ')}</span>
+            <span className="sr-only">{people.map((x) => x.name.split(' ')[0]).join(', ')}</span>
+          </div>
+        </Figure>
+        <Figure label="Claims settled" value={`${settled.length} of ${data.claims.length}`}>
+          <p className="mt-2 truncate text-[12px] text-muted-foreground max-md:text-[11.5px]">{settled.length ? `${money(settled.reduce((s, c) => s + (c.amountSettled ?? 0), 0))} paid out` : 'None yet'}</p>
+        </Figure>
       </m.section>
 
-      <m.div variants={rise} className="grid items-start gap-4 @4xl:grid-cols-12">
-        <Panel title="Your policies" action={viewAll('View all', () => onNavigate('policies'))} className={`${flat} @4xl:col-span-7`}>
+      <m.div variants={rise} className="grid gap-4 @4xl:grid-cols-12">
+        <Panel title="Your policies" action={viewAll('View all', () => onNavigate('policies'))} className={`${flat} @4xl:col-span-8`}>
           <ul className="px-2">
             {renewals.map((p) => (
               <li key={p.id} className="group flex items-center gap-1 rounded-card transition-colors hover:bg-muted/60 active:bg-muted/80">
@@ -107,7 +119,7 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
           </ul>
         </Panel>
 
-        <div className="grid gap-4 @4xl:col-span-5">
+        <div className="grid gap-4 @4xl:col-span-4 @4xl:grid-rows-[auto_1fr]">
           <Panel title="Recent claims" action={viewAll('View all', () => onNavigate('claims'))} className={flat}>
             {data.claims.length === 0 && <p className="px-5 pb-4 text-[14px] text-muted-foreground">No past claims.</p>}
             <ul className="px-5">
@@ -152,6 +164,22 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
         </div>
       </m.div>
     </m.div>
+  );
+}
+
+type Divider = 'right-bottom' | 'bottom-desk-right' | 'right' | undefined;
+/** One figure in the summary strip. Dividers are inset lines, not full-height borders. */
+function Figure({ label, value, divider, children }: { label: string; value: string; divider?: Divider; children?: React.ReactNode }) {
+  const right = divider === 'right-bottom' || divider === 'right' ? 'after:block' : divider === 'bottom-desk-right' ? 'after:hidden @4xl:after:block' : 'after:hidden';
+  const bottom = divider === 'right-bottom' || divider === 'bottom-desk-right' ? 'before:block @4xl:before:hidden' : 'before:hidden';
+  return (
+    <div
+      className={`relative min-w-0 px-4 py-3.5 @4xl:px-5 @4xl:py-4 after:absolute after:inset-y-4 after:right-0 after:w-px after:bg-line before:absolute before:inset-x-4 before:bottom-0 before:h-px before:bg-line ${right} ${bottom}`}
+    >
+      <p className="text-[12px] text-muted-foreground max-md:text-[11.5px]">{label}</p>
+      <p className="figure mt-1 text-[24px] max-md:text-[20px]">{value}</p>
+      {children}
+    </div>
   );
 }
 

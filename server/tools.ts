@@ -17,7 +17,7 @@ import type {
   PortfolioData,
 } from '../shared/types.js';
 import { ACTIVE_CATEGORIES, DEMO_TODAY, scopePortfolio } from '../shared/demo.js';
-import { assessHealth, assessLife, orderFactors, type LifeAssessment, type PolicyAssessment } from './confidence.js';
+import { assessHealth, assessLife, orderFactors, sumInsuredUsed, type LifeAssessment, type PolicyAssessment } from './confidence.js';
 import { readLifeContext, readSituation, type Person } from './situation.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -483,8 +483,7 @@ export function calculatePotentialCost(args: z.infer<typeof schemas.calculatePot
     payable -= amt;
   }
   // Sum insured left this policy year, after claims already paid from it
-  const used = portfolio.claims.filter((c) => c.policyId === p.id && c.date >= p.startDate && c.date <= p.renewalDate).reduce((s2, c) => s2 + (c.amountSettled ?? c.amountClaimed), 0);
-  const left = p.sumInsured - used;
+  const { used, remaining: left } = sumInsuredUsed(p, portfolio.claims); // left stays within [0, sum insured]
   if (payable > left) {
     base.lines.push({ label: used ? 'Above sum insured left this year' : 'Above sum insured', amount: payable - left });
     out += payable - left;

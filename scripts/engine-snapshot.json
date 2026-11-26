@@ -5008,5 +5008,301 @@
       "My father’s hospital bill is ₹4 lakh for a cardiac procedure. How much will I pay?",
       "Is my father covered?"
     ]
+  },
+  "How much health cover do I have left?": {
+    "route": "intent:Health: sum left > searchPolicies > retrievePolicyEvidence > retrievePolicyEvidence",
+    "headline": "You have ₹14,60,200 of health cover left this policy year, across both policies.",
+    "verdict": "info",
+    "keyPoints": [
+      "Family Floater Shield: ₹9,60,200 of ₹10,00,000 left (after Kabir’s ₹39,800 claim).",
+      "Employer Group Health: ₹5,00,000 of ₹5,00,000 left.",
+      "Both are family covers, so everyone on a policy shares its amount."
+    ],
+    "coverage": [],
+    "evidence": [
+      "HLT-01-3.1",
+      "HLT-01-6.2",
+      "HLT-01-5.1",
+      "HLT-01-4.1",
+      "HLT-01-3.3",
+      "HLT-01-8.1",
+      "HLT-01-3.2",
+      "HLT-01-6.4"
+    ],
+    "untrustedNotice": true,
+    "suggestions": [
+      "Compare my health policies",
+      "How much will I pay if my hospital bill is ₹3 lakh?"
+    ]
+  },
+  "how much cover is left": {
+    "route": "intent:Health: sum left > searchPolicies > retrievePolicyEvidence > retrievePolicyEvidence",
+    "headline": "You have ₹14,60,200 of health cover left this policy year, across both policies.",
+    "verdict": "info",
+    "keyPoints": [
+      "Family Floater Shield: ₹9,60,200 of ₹10,00,000 left (after Kabir’s ₹39,800 claim).",
+      "Employer Group Health: ₹5,00,000 of ₹5,00,000 left.",
+      "Both are family covers, so everyone on a policy shares its amount."
+    ],
+    "coverage": [],
+    "evidence": [
+      "HLT-01-3.1",
+      "HLT-01-6.2",
+      "HLT-01-5.1",
+      "HLT-01-4.1",
+      "HLT-01-3.3",
+      "HLT-01-8.1",
+      "HLT-01-3.2",
+      "HLT-01-6.4"
+    ],
+    "untrustedNotice": true,
+    "suggestions": [
+      "Compare my health policies",
+      "How much will I pay if my hospital bill is ₹3 lakh?"
+    ]
+  },
+  "how much of my health insurance is remaining": {
+    "route": "intent:Health: sum left > searchPolicies > retrievePolicyEvidence > retrievePolicyEvidence",
+    "headline": "You have ₹14,60,200 of health cover left this policy year, across both policies.",
+    "verdict": "info",
+    "keyPoints": [
+      "Family Floater Shield: ₹9,60,200 of ₹10,00,000 left (after Kabir’s ₹39,800 claim).",
+      "Employer Group Health: ₹5,00,000 of ₹5,00,000 left.",
+      "Both are family covers, so everyone on a policy shares its amount."
+    ],
+    "coverage": [],
+    "evidence": [
+      "HLT-01-3.1",
+      "HLT-01-6.2",
+      "HLT-01-5.1",
+      "HLT-01-4.1",
+      "HLT-01-3.3",
+      "HLT-01-8.1",
+      "HLT-01-3.2",
+      "HLT-01-6.4"
+    ],
+    "untrustedNotice": true,
+    "suggestions": [
+      "Compare my health policies",
+      "How much will I pay if my hospital bill is ₹3 lakh?"
+    ]
+  },
+  "balance sum insured": {
+    "route": "intent:Health: sum left > searchPolicies > retrievePolicyEvidence > retrievePolicyEvidence",
+    "headline": "You have ₹14,60,200 of health cover left this policy year, across both policies.",
+    "verdict": "info",
+    "keyPoints": [
+      "Family Floater Shield: ₹9,60,200 of ₹10,00,000 left (after Kabir’s ₹39,800 claim).",
+      "Employer Group Health: ₹5,00,000 of ₹5,00,000 left.",
+      "Both are family covers, so everyone on a policy shares its amount."
+    ],
+    "coverage": [],
+    "evidence": [
+      "HLT-01-3.1",
+      "HLT-01-6.2",
+      "HLT-01-5.1",
+      "HLT-01-4.1",
+      "HLT-01-3.3",
+      "HLT-01-8.1",
+      "HLT-01-3.2",
+      "HLT-01-6.4"
+    ],
+    "untrustedNotice": true,
+    "suggestions": [
+      "Compare my health policies",
+      "How much will I pay if my hospital bill is ₹3 lakh?"
+    ]
+  },
+  "When is my term premium due?": {
+    "route": "intent:Term life: premium due > searchPolicies > retrievePolicyEvidence > assessClaimFactors",
+    "headline": "Your next Secure Term Plus premium of ₹16,900 is due on 5 Aug 2027.",
+    "verdict": "info",
+    "keyPoints": [
+      "If you miss that date, a 30-day grace period keeps you covered till 4 Sep 2027.",
+      "Death during the grace period is still paid, minus the unpaid premium.",
+      "After the grace period the policy lapses and nothing is paid.",
+      "A lapsed policy can be revived within 5 years, but that restarts the suicide clause and the Section 45 period."
+    ],
+    "details": [
+      "premium-grace"
+    ],
+    "coverage": [],
+    "evidence": [
+      "LIF-01-3.5",
+      "LIF-01-3.6"
+    ],
+    "suggestions": [
+      "I missed my term premium due date, am I still covered?",
+      "What happens to my family if I die?"
+    ]
+  },
+  "When do I pay my next term premium?": {
+    "route": "intent:Term life: premium due > searchPolicies > retrievePolicyEvidence > assessClaimFactors",
+    "headline": "Your next Secure Term Plus premium of ₹16,900 is due on 5 Aug 2027.",
+    "verdict": "info",
+    "keyPoints": [
+      "If you miss that date, a 30-day grace period keeps you covered till 4 Sep 2027.",
+      "Death during the grace period is still paid, minus the unpaid premium.",
+      "After the grace period the policy lapses and nothing is paid.",
+      "A lapsed policy can be revived within 5 years, but that restarts the suicide clause and the Section 45 period."
+    ],
+    "details": [
+      "premium-grace"
+    ],
+    "coverage": [],
+    "evidence": [
+      "LIF-01-3.5",
+      "LIF-01-3.6"
+    ],
+    "suggestions": [
+      "I missed my term premium due date, am I still covered?",
+      "What happens to my family if I die?"
+    ]
+  },
+  "term premium due date": {
+    "route": "intent:Term life: premium due > searchPolicies > retrievePolicyEvidence > assessClaimFactors",
+    "headline": "Your next Secure Term Plus premium of ₹16,900 is due on 5 Aug 2027.",
+    "verdict": "info",
+    "keyPoints": [
+      "If you miss that date, a 30-day grace period keeps you covered till 4 Sep 2027.",
+      "Death during the grace period is still paid, minus the unpaid premium.",
+      "After the grace period the policy lapses and nothing is paid.",
+      "A lapsed policy can be revived within 5 years, but that restarts the suicide clause and the Section 45 period."
+    ],
+    "details": [
+      "premium-grace"
+    ],
+    "coverage": [],
+    "evidence": [
+      "LIF-01-3.5",
+      "LIF-01-3.6"
+    ],
+    "suggestions": [
+      "I missed my term premium due date, am I still covered?",
+      "What happens to my family if I die?"
+    ]
+  },
+  "How do I add my parents to my employer health plan?": {
+    "route": "intent:Health: add member > searchPolicies > retrievePolicyEvidence > retrievePolicyEvidence",
+    "headline": "Your father is already on Employer Group Health, so only your mother needs adding, in the March enrolment window with cover from 1 Apr 2027.",
+    "verdict": "info",
+    "keyPoints": [
+      "Employer Group Health: parents can join only in March, through the HR portal.",
+      "Family Floater Shield: your parents can join at renewal (30 Jun 2027) after medical checks, and waiting periods start fresh.",
+      "Parents on Employer Group Health have a 20% co-pay on every claim."
+    ],
+    "details": [
+      "add-member"
+    ],
+    "coverage": [],
+    "evidence": [
+      "HLT-02-4.3",
+      "HLT-01-9.1"
+    ],
+    "untrustedNotice": true,
+    "suggestions": [
+      "Is my mother covered?",
+      "Compare my health policies"
+    ]
+  },
+  "How do I add my father to my health insurance?": {
+    "route": "intent:Health: add member > searchPolicies > retrievePolicyEvidence > retrievePolicyEvidence",
+    "headline": "Your father is already covered by Employer Group Health, and you can also add him to Family Floater Shield at renewal on 30 Jun 2027.",
+    "verdict": "info",
+    "keyPoints": [
+      "Family Floater Shield: he would join after a proposal form and medical checks, which can mean a higher premium.",
+      "Waiting periods start fresh for him on Family Floater Shield, including the wait for any pre-existing condition.",
+      "On Employer Group Health, he has a 20% co-pay on every claim."
+    ],
+    "details": [
+      "add-member"
+    ],
+    "coverage": [],
+    "evidence": [
+      "HLT-02-4.3",
+      "HLT-01-9.1"
+    ],
+    "untrustedNotice": true,
+    "suggestions": [
+      "Is my mother covered?",
+      "Compare my health policies"
+    ]
+  },
+  "Can I add my dad to the family floater?": {
+    "route": "intent:Health: add member > searchPolicies > retrievePolicyEvidence > retrievePolicyEvidence",
+    "headline": "Your father is already covered by Employer Group Health, and you can also add him to Family Floater Shield at renewal on 30 Jun 2027.",
+    "verdict": "info",
+    "keyPoints": [
+      "Family Floater Shield: he would join after a proposal form and medical checks, which can mean a higher premium.",
+      "Waiting periods start fresh for him on Family Floater Shield, including the wait for any pre-existing condition.",
+      "On Employer Group Health, he has a 20% co-pay on every claim."
+    ],
+    "details": [
+      "add-member"
+    ],
+    "coverage": [],
+    "evidence": [
+      "HLT-02-4.3",
+      "HLT-01-9.1"
+    ],
+    "untrustedNotice": true,
+    "suggestions": [
+      "Is my mother covered?",
+      "Compare my health policies"
+    ]
+  },
+  "How much sum insured is left on my family floater?": {
+    "route": "intent:Health: sum left > searchPolicies > retrievePolicyEvidence > retrievePolicyEvidence",
+    "headline": "Family Floater Shield has ₹9,60,200 of its ₹10,00,000 sum insured left this policy year.",
+    "verdict": "info",
+    "keyPoints": [
+      "Kabir’s ₹39,800 claim has been paid from it.",
+      "It resets when the policy renews on 30 Jun 2027.",
+      "It’s a family cover, so everyone on it shares this amount.",
+      "Employer Group Health has another ₹5,00,000 left."
+    ],
+    "coverage": [],
+    "evidence": [
+      "HLT-01-3.1",
+      "HLT-01-6.2",
+      "HLT-01-5.1",
+      "HLT-01-4.1",
+      "HLT-01-3.3",
+      "HLT-01-8.1",
+      "HLT-01-3.2",
+      "HLT-01-6.4"
+    ],
+    "untrustedNotice": true,
+    "suggestions": [
+      "How much health cover do I have left?",
+      "How much will I pay if my hospital bill is ₹3 lakh?"
+    ]
+  },
+  "How much cover is left on my employer plan?": {
+    "route": "intent:Health: sum left > searchPolicies > retrievePolicyEvidence > retrievePolicyEvidence",
+    "headline": "Employer Group Health has ₹5,00,000 of its ₹5,00,000 sum insured left this policy year.",
+    "verdict": "info",
+    "keyPoints": [
+      "No claims have been paid from it this policy year.",
+      "It resets when the policy renews on 31 Mar 2027.",
+      "It’s a family cover, so everyone on it shares this amount.",
+      "Family Floater Shield has another ₹9,60,200 left."
+    ],
+    "coverage": [],
+    "evidence": [
+      "HLT-01-3.1",
+      "HLT-01-6.2",
+      "HLT-01-5.1",
+      "HLT-01-4.1",
+      "HLT-01-3.3",
+      "HLT-01-8.1",
+      "HLT-01-3.2",
+      "HLT-01-6.4"
+    ],
+    "untrustedNotice": true,
+    "suggestions": [
+      "How much health cover do I have left?",
+      "How much will I pay if my hospital bill is ₹3 lakh?"
+    ]
   }
 }

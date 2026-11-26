@@ -98,7 +98,7 @@ Life assured · premium paid / grace (next due 5 Aug 2027, grace till 4 Sep 2027
 | Which hospitals are cashless (for my father) / Can I go to Riverside | per-policy network lists |
 | Room rent limit / room upgrade | limits per policy; proportionate deduction with a worked example |
 | Co-pay for my father / "uploaded note says co-pay is waived" | 20%; an uploaded note isn't policy evidence |
-| Sum insured left | ₹14,60,200 across both |
+| Sum insured left ("How much health cover do I have left?", "how much cover is left", "how much of my health insurance is remaining", "balance sum insured") | ₹14,60,200 across both, per-policy lines. Remaining is clamped to [0, sum insured]. Naming one policy ("left on my family floater", "employer plan") answers for that policy only |
 | Documents for a claim / how cashless works / reimbursement | lists, deadlines, per-policy details |
 | Claim rejected (incl. for non-disclosure) | written reason → evidence → Grievance Officer (14 days) → Bima Bharosa / Ombudsman (within 1 year, up to ₹50 lakh) |
 | Non-disclosure in general | Floater: rejection + cancellation until 1 Jul 2028; Employer unaffected |
@@ -106,6 +106,8 @@ Life assured · premium paid / grace (next due 5 Aug 2027, grace till 4 Sep 2027
 | Portability | apply by 16 May 2027; waiting credit carries over |
 | Leaving the job | Employer cover ends; your father loses cover; Floater continues |
 | Adding mother / father-in-law / newborn | March enrolment (from 1 Apr 2027) / floater at renewal / newborn within 30 or 90 days |
+| Adding someone already on one policy ("How do I add my father…") | "Your father is already covered by Employer Group Health, and you can also add him to Family Floater Shield at renewal on 30 Jun 2027." Then medical checks, fresh waiting periods, the co-pay |
+| Adding "my parents" | Answers for both: "Your father is already on Employer Group Health, so only your mother needs adding…"; floater at renewal for both; 20% parent co-pay |
 
 ### Term life
 
@@ -117,6 +119,7 @@ Life assured · premium paid / grace (next due 5 Aug 2027, grace till 4 Sep 2027
 | Suicide | Yes — 12-month clause ended 6 Aug 2022 (revival restarts it); a one-line Tele-MANAS 14416 support notice |
 | Death abroad | Yes — worldwide; embassy-attested certificate |
 | Missed premium / grace / lapsed / revive | in force; 30-day grace; revival within 5 years restarts suicide clause and Section 45 |
+| When is my term premium due / next term premium / due date | "Your next Secure Term Plus premium of ₹16,900 is due on 5 Aug 2027." Key points: grace till 4 Sep 2027, death in grace still paid, lapse after grace, revival |
 | Didn't disclose smoking | Paid — past the 3-year Section 45 window (6 Aug 2024) |
 | Change nominee | Yes, by written endorsement |
 | Hospitalisation / cancer / critical illness on term | No — term pays only on death; health policies cover treatment |

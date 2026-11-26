@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileText, LayoutGrid, Receipt, Shield, type LucideIcon } from 'lucide-react';
 import type { Policy, PortfolioData } from '../shared/types';
-import { ClaimsScreen, DocumentsScreen, OverviewScreen, PoliciesScreen, PolicySheet } from './screens';
+import { ClaimsScreen, DocumentsScreen, PoliciesScreen, PolicySheet } from './screens';
+import { OverviewScreen } from './home';
 import { AssistantView } from './Assistant';
 import { DittoLogo, MascotAvatar, PersonAvatar, ThemeToggle, useMediaQuery, useTheme } from './ui';
 import { Button } from '@/components/ui/button';

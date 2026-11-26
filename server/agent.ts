@@ -61,6 +61,7 @@ const VAGUE = /^(is (it|this|that) covered|am i covered|are we covered|can i cla
 const LIFE_NO_HEALTH = /\b(hospitali[sz]\w*|hospital|critical illness|cancer|illness|treatment|surgery|medical)\b/;
 const NOMINEE_CHANGE = /\b((change|update|add|replace|remove|switch) .{0,20}nominee|nominee .{0,20}(change|update)|new nominee)\b/;
 const LIFE_CLAIM = /\b(how (do|does|can|would|will|should) (i|we|my \w+|the nominee) (make|file|raise|start|submit|get|do) (a |the )?claim|how (do|can|should) (i|we|my \w+) claim|claim process|how to claim|claim steps|what documents|documents (are )?(needed|required)|what does (the|my) nominee need)\b/;
+const PREMIUM_DUE = /\b(when (is|are|do|does|will|should|must) .{0,30}\bpremiums?\b|premiums? (is |are )?due|(premium|payment) due date|due date .{0,20}premium|next (term |life )?premium|pay .{0,20}premium .{0,10}(by|when|next)|premium (date|schedule))\b/;
 const RIDER_Q = /\b(rider|riders)\b/;
 const DEATH_Q = /\b(die|dies|died|death|dead|pass(ed)? away|payout|receive|get|family|nominee)\b/;
 const GUARANTEE_ONLY = /(guarantee|promise|100%|definitely|assure).{0,40}(approv|pay|settle)|every claim .{0,20}approved/;
@@ -73,7 +74,7 @@ const HEALTH_TOPICS: [HealthTopic, RegExp][] = [
   ['add_member', /\b(add|adding|include|enrol+)\b.{0,40}\b(policy|insurance|cover|plan|floater|mother|father|mom|dad|parents|wife|husband|baby|newborn|child|in-?laws?)\b|\bnew ?born\b/],
   ['rejected', REJECTED],
   ['disclosure', /\b((didn'?t|did not|never|not|forgot to) (declare|disclose|tell|mention)|non-?disclosure|undeclared|undisclosed|wasn'?t declared|hid)\b/],
-  ['sum_left', /\b((sum insured|cover|coverage|amount|limit) (is )?(left|remaining|available|balance)|balance sum insured|remaining sum insured|how much (cover|sum insured) (do i have )?left)\b/],
+  ['sum_left', /\b((sum insured|cover|coverage|amount|limit) (is |do i have |have i got |i have )?(left|remaining|available|balance)|(balance|remaining) (sum insured|cover|health cover)|how much (health |medical )?(cover|coverage|sum insured|insurance)\b.{0,25}\b(left|remaining)|how much of (my|the|our) (health |medical )?(cover|coverage|sum insured|insurance|policy limit)\b.{0,25}\b(left|remaining|used))\b/],
   ['network', /\b(which hospitals|cashless hospitals?|network hospitals?|list of hospitals|hospital list|panel hospitals?|empanell?ed|can i go to [a-z ]+ for cashless|is [a-z ]+ (a )?(network|cashless)|hospitals? (are |is )?(cashless|in (the )?network))\b/],
   ['copay', /\bco-?pay(ment)?\b/],
   ['room', /\b(room rent|room upgrade|upgrade (my |the |a )?room|bigger room|private room|room limit|room category|suite)\b/],
@@ -348,6 +349,7 @@ function lifeTopic(t: string): LifeTopic | 'explain' {
   if (/\b(have|has|is there|any|got)\b.{0,30}\brider\b/.test(t) && !c.intoxication) return 'rider';
   if (c.disclosureTopic) return 'disclosure';
   if (c.missedPremium) return 'premium';
+  if (PREMIUM_DUE.test(t)) return 'premium_due';
   if (LIFE_CLAIM.test(t)) return 'claim';
   if (PERIOD_Q.test(t)) return 'explain';
   if (c.abroad && /\b(die|death|died|dies|pass(ed)? away|killed)\b/.test(t)) return 'abroad';
@@ -419,7 +421,7 @@ export async function runAgent(message: string, emit: (s: AgentStep) => void): P
 
   // Health topics answered from one or two clauses
   const topicHit = HEALTH_TOPICS.find(([k, re]) => re.test(t) && topicApplies(k, s, t));
-  if (topicHit) { route(col, `Health: ${topicHit[0].replace('_', ' ')}`); return runHealthTopic(col, t, topicHit[0], s); }
+  if (topicHit) { route(col, `Health: ${topicHit[0].replace('_', ' ')}`); return runHealthTopic(col, t, topicHit[0], s, named.filter((p) => p.category === 'health').map((p) => p.id)); }
 
   // Policy details ("What's the sum insured on…?", "Tell me about…")
   const targets = named.length ? named : portfolio.policies.filter((p) => (cats as Category[]).includes(p.category));

@@ -63,10 +63,15 @@ function hoursIn(text: string | undefined, re: RegExp): number | undefined {
   return m ? Number(m[1]) : undefined;
 }
 
-/** Sum insured used by claims dated inside the current policy year. */
-export function sumInsuredUsed(p: Policy, claims: PortfolioData['claims']): { used: number; claims: PortfolioData['claims'] } {
+/**
+ * Sum insured used by claims dated inside the current policy year, and what is left.
+ * `used` is never negative and `remaining` always stays within [0, sum insured], even with odd claim data.
+ */
+export function sumInsuredUsed(p: Policy, claims: PortfolioData['claims']): { used: number; remaining: number; claims: PortfolioData['claims'] } {
   const inYear = claims.filter((c) => c.policyId === p.id && c.date >= p.startDate && c.date <= p.renewalDate);
-  return { used: inYear.reduce((s, c) => s + (c.amountSettled ?? c.amountClaimed), 0), claims: inYear };
+  const total = Math.max(0, p.sumInsured);
+  const used = Math.max(0, inYear.reduce((s, c) => s + Math.max(0, c.amountSettled ?? c.amountClaimed ?? 0), 0));
+  return { used, remaining: Math.min(total, Math.max(0, total - used)), claims: inYear };
 }
 
 // ---------- assessment ----------
@@ -342,7 +347,7 @@ export function assessHealth(p: Policy, person: Person, ctx: AssessContext): Pol
     const nonMed = clauseWith(p, 'exclusion', ['non-medical']);
     if (nonMed && (inCare || care === 'discharged' || s.wantsCost || !!s.bill)) factors.push(f('non-medical', 'Non-medical items', 'risk', 'Gloves, admission kits, toiletries and attendant charges aren’t paid', [nonMed.id], { impact: 'reduces', detail: nonMed.text }));
     const used = sumInsuredUsed(p, ctx.claims);
-    base.siLeft = p.sumInsured - used.used;
+    base.siLeft = used.remaining;
     const shared = p.insured.length > 1 ? ', shared by the family' : '';
     if (s.bill && s.bill > base.siLeft) {
       base.certainDeduction = true;

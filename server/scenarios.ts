@@ -558,7 +558,8 @@ function multiPerson(col: Collector, s: Situation, groups: { w: Who; list: Polic
 
 export type HealthTopic = 'network' | 'renewal' | 'portability' | 'add_member' | 'job' | 'copay' | 'room' | 'sum_left' | 'disclosure' | 'documents' | 'cashless_how' | 'reimbursement_how' | 'rejected' | 'guarantee';
 
-export function runHealthTopic(col: Collector, message: string, kind: HealthTopic, s: Situation): AgentAnswer {
+/** `namedIds`: health policies the message names ("my family floater", "the employer plan"). Used where an answer can be narrowed to one policy. */
+export function runHealthTopic(col: Collector, message: string, kind: HealthTopic, s: Situation, namedIds: string[] = []): AgentAnswer {
   const f = FLOATER!;
   const g = EMPLOYER!;
   const ids = HEALTH.map((p) => p.id);
@@ -642,9 +643,56 @@ export function runHealthTopic(col: Collector, message: string, kind: HealthTopi
       const baby = /\b(baby|newborn|new born|child)\b/.test(s.raw) && !parentLike;
       const gC = clauseWith(g, 'condition', ['add member']);
       const fC = clauseWith(f, 'condition', ['add member']);
-      const already = w ? HEALTH.filter((p) => p.insured.some((i) => new RegExp(`\\(${w.person}\\)`).test(i))) : [];
+      const onPolicies = (person: Person) => HEALTH.filter((p) => p.insured.some((i) => new RegExp(`\\(${person}\\)`).test(i)));
+      // "my parents": answer for both, since each may already be on a different policy
+      if (/\bparents\b/.test(s.raw) && !/\bin-?laws?\b|parents[- ]in[- ]law/.test(s.raw) && s.persons.includes('father') && s.persons.includes('mother')) {
+        const parents = (['father', 'mother'] as Person[]).map((person) => ({ who: Who.of(s, person), on: onPolicies(person) }));
+        const onG = parents.filter((x) => x.on.includes(g));
+        const needG = parents.filter((x) => !x.on.includes(g));
+        const needF = parents.filter((x) => !x.on.includes(f));
+        const copay = g.clauses.find((c) => c.type === 'deductible' && c.percent)?.percent;
+        const nouns = (list: typeof parents) => (list.length === 2 ? 'your parents' : list[0].who.noun);
+        const headline = !needG.length
+          ? `Both your parents are already on ${g.name}.`
+          : onG.length
+            ? `${onG[0].who.Noun} is already on ${g.name}, so only ${needG[0].who.noun} needs adding, in the March enrolment window with cover from ${fmtDate(nextApril1())}.`
+            : `Add your parents to ${g.name} in the March enrolment window, with cover from ${fmtDate(nextApril1())}.`;
+        return col.answer('', {
+          headline,
+          verdict: 'info',
+          keyPoints: [
+            needG.length ? `${g.name}: parents can join only in March, through the HR portal.` : '',
+            needF.length ? `${f.name}: ${nouns(needF)} can join at renewal (${fmtDate(f.renewalDate)}) after medical checks, and waiting periods start fresh.` : '',
+            copay ? `Parents on ${g.name} have a ${copay}% co-pay on every claim.` : '',
+          ],
+          details: [addMemberSection()],
+          evidenceIds: [gC?.id, fC?.id].filter((x): x is string => !!x),
+          suggestions: ['Is my mother covered?', 'Compare my health policies'],
+        });
+      }
+      const already = w ? onPolicies(w.person) : [];
       if (w && already.length === HEALTH.length) {
         return col.answer('', { headline: `${w.Noun} ${w.is} already covered by both your health policies.`, verdict: 'info', keyPoints: HEALTH.map((p) => `${p.name}: ${p.insured.find((i) => new RegExp(`\\(${w.person}\\)`).test(i))}.`), suggestions: ['Compare my health policies'] });
+      }
+      // Already on one policy: say so first, then what joining the other one involves
+      if (w && already.length && !baby) {
+        const missing = HEALTH.filter((p) => !already.includes(p));
+        const copay = g.clauses.find((c) => c.type === 'deductible' && c.percent)?.percent;
+        const toF = missing.includes(f);
+        return col.answer('', {
+          headline: `${w.Noun} ${w.is} already covered by ${listJoin(already.map((p) => p.name))}${toF ? `, and you can also add ${w.obj} to ${f.name} at renewal on ${fmtDate(f.renewalDate)}` : `, and you can also add ${w.obj} to ${g.name} in the March enrolment window`}.`,
+          verdict: 'info',
+          keyPoints: toF
+            ? [
+                `${f.name}: ${w.sub} would join after a proposal form and medical checks, which can mean a higher premium.`,
+                `Waiting periods start fresh for ${w.obj} on ${f.name}, including the wait for any pre-existing condition.`,
+                already.includes(g) && copay && parentLike ? `On ${g.name}, ${w.sub} ${w.subHas} a ${copay}% co-pay on every claim.` : '',
+              ]
+            : [`${g.name}: cover starts ${fmtDate(nextApril1())}, after enrolment through the HR portal.`],
+          details: [addMemberSection()],
+          evidenceIds: [gC?.id, fC?.id].filter((x): x is string => !!x),
+          suggestions: ['Is my mother covered?', 'Compare my health policies'],
+        });
       }
       const headline = baby
         ? `Add a newborn within 30 days of birth to ${g.name}, or within 90 days to ${f.name}.`
@@ -719,8 +767,25 @@ export function runHealthTopic(col: Collector, message: string, kind: HealthTopi
       });
     }
     case 'sum_left': {
-      const pts = HEALTH.map((p) => { const u = sumInsuredUsed(p, portfolio.claims); return `${p.name}: ${inr(p.sumInsured - u.used)} of ${inr(p.sumInsured)} left${u.used ? ` (after ${u.claims.map((c) => `${c.title.split(' —')[0]}’s ${inr(c.amountSettled ?? c.amountClaimed)} claim`).join(', ')})` : ''}.`; });
-      const total = HEALTH.reduce((s2, p) => s2 + p.sumInsured - sumInsuredUsed(p, portfolio.claims).used, 0);
+      const after = (u: ReturnType<typeof sumInsuredUsed>) => u.claims.map((c) => `${c.title.split(' —')[0]}’s ${inr(c.amountSettled ?? c.amountClaimed)} claim`).join(', ');
+      const one = namedIds.length === 1 ? HEALTH.find((p) => p.id === namedIds[0]) : undefined;
+      if (one) {
+        const u = sumInsuredUsed(one, portfolio.claims);
+        const other = HEALTH.find((p) => p !== one);
+        return col.answer('', {
+          headline: `${one.name} has ${inr(u.remaining)} of its ${inr(one.sumInsured)} sum insured left this policy year.`,
+          verdict: 'info',
+          keyPoints: [
+            u.used ? `${cap(after(u))} ${u.claims.length > 1 ? 'have' : 'has'} been paid from it.` : 'No claims have been paid from it this policy year.',
+            `It resets when the policy renews on ${fmtDate(one.renewalDate)}.`,
+            one.insured.length > 1 ? 'It’s a family cover, so everyone on it shares this amount.' : '',
+            other ? `${other.name} has another ${inr(sumInsuredUsed(other, portfolio.claims).remaining)} left.` : '',
+          ],
+          suggestions: ['How much health cover do I have left?', 'How much will I pay if my hospital bill is ₹3 lakh?'],
+        });
+      }
+      const pts = HEALTH.map((p) => { const u = sumInsuredUsed(p, portfolio.claims); return `${p.name}: ${inr(u.remaining)} of ${inr(p.sumInsured)} left${u.used ? ` (after ${after(u)})` : ''}.`; });
+      const total = HEALTH.reduce((s2, p) => s2 + sumInsuredUsed(p, portfolio.claims).remaining, 0);
       return col.answer('', { headline: `You have ${inr(total)} of health cover left this policy year, across both policies.`, verdict: 'info', keyPoints: [...pts, 'Both are family covers, so everyone on a policy shares its amount.'], suggestions: ['Compare my health policies', 'How much will I pay if my hospital bill is ₹3 lakh?'] });
     }
     case 'disclosure': {
@@ -807,7 +872,7 @@ function notInsuredShort(col: Collector, w: Who): AgentAnswer {
 
 // ---------- term life ----------
 
-export type LifeTopic = 'payout' | 'suicide' | 'abroad' | 'accident' | 'rider' | 'premium' | 'disclosure' | 'nominee_change' | 'claim' | 'no_health' | 'rejected';
+export type LifeTopic = 'payout' | 'suicide' | 'abroad' | 'accident' | 'rider' | 'premium' | 'premium_due' | 'disclosure' | 'nominee_change' | 'claim' | 'no_health' | 'rejected';
 
 export function runLife(col: Collector, message: string, kind: LifeTopic): AgentAnswer {
   const p = LIFE[0];
@@ -815,7 +880,7 @@ export function runLife(col: Collector, message: string, kind: LifeTopic): Agent
   col.call('searchPolicies', { query: message, category: 'life' });
   const tags: Record<LifeTopic, string[]> = {
     payout: ['death', 'nominee', 'accidental death'], suicide: ['suicide', 'revival'], abroad: ['worldwide', 'death'], accident: ['accidental death', 'rider exclusion'], rider: ['accidental death', 'rider exclusion'],
-    premium: ['grace', 'revival', 'lapse'], disclosure: ['section 45', 'disclosure', 'smoking'], nominee_change: ['nominee', 'nomination'], claim: ['claim', 'documents', 'claim settlement'],
+    premium: ['grace', 'revival', 'lapse'], premium_due: ['grace', 'due', 'revival'], disclosure: ['section 45', 'disclosure', 'smoking'], nominee_change: ['nominee', 'nomination'], claim: ['claim', 'documents', 'claim settlement'],
     no_health: ['critical illness', 'hospital'], rejected: ['grievance', 'section 45'],
   };
   retrieve(col, [p.id], tags[kind]);
@@ -906,6 +971,23 @@ export function runLife(col: Collector, message: string, kind: LifeTopic): Agent
         confidence: rate('yes', factors),
         details: revival ? [{ id: 'revival', title: 'Reviving a lapsed policy', body: revival.text }] : undefined,
         suggestions: ['What happens to my family if I die?', 'What if I didn’t disclose smoking on my term policy?'],
+      });
+    }
+    case 'premium_due': {
+      const grace = clauseWith(p, 'condition', ['grace']);
+      const revival = clauseWith(p, 'condition', ['revival']);
+      return col.answer('', {
+        headline: `Your next ${p.name} premium${p.premium ? ` of ${inr(p.premium)}` : ''} is due on ${fmtDate(a.premiumDue)}.`,
+        verdict: 'info',
+        keyPoints: [
+          `If you miss that date, a 30-day grace period keeps you covered till ${fmtDate(a.graceEnds)}.`,
+          'Death during the grace period is still paid, minus the unpaid premium.',
+          'After the grace period the policy lapses and nothing is paid.',
+          revival ? 'A lapsed policy can be revived within 5 years, but that restarts the suicide clause and the Section 45 period.' : '',
+        ],
+        details: grace || revival ? [{ id: 'premium-grace', title: 'Grace period and revival wording', body: [grace ? `**${grace.section}:** ${grace.text}` : '', revival ? `**${revival.section}:** ${revival.text}` : ''].filter(Boolean).join('\n\n') }] : undefined,
+        evidenceIds: [grace?.id, revival?.id].filter((x): x is string => !!x),
+        suggestions: ['I missed my term premium due date, am I still covered?', 'What happens to my family if I die?'],
       });
     }
     case 'disclosure': {

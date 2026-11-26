@@ -275,3 +275,7 @@ h1, h2, h3 {
 :root[data-theme='dark'] .blob-b { background: color-mix(in srgb, #2aa6e0 18%, transparent); }
 @keyframes blob-a { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(70px, 50px, 0) scale(1.15); } }
 @keyframes blob-b { from { transform: translate3d(0, 0, 0) scale(1.1); } to { transform: translate3d(-60px, 70px, 0) scale(0.95); } }
+
+/* Typed example questions in the home search field: a blinking caret */
+@keyframes caret-blink { 0%, 45% { opacity: 1; } 55%, 100% { opacity: 0; } }
+.caret { animation: caret-blink 1s step-end infinite; }

@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { SETTLE, SETTLE_FAST, SPRING, rise, riseSm, stagger } from './motion';
+import { EASE, SETTLE, SETTLE_FAST, SPRING, rise, riseSm, stagger, wait } from './motion';
 import { useSpringSheet } from './sheet';
 
 export const ASSISTANT_PANEL_ID = 'companion-panel';
@@ -119,12 +119,26 @@ export function AssistantView({
     const my = ++reqId.current;
     const timer = setTimeout(() => ac.abort(), 90_000);
     try {
-      // No artificial delay: the answer appears as soon as the local engine responds. Its real steps stream into the
-      // live trace while the request is in flight (only visible if it takes a moment), and the answer's own
-      // "Checked N steps" header ticks them off quickly as it appears.
-      const onStep = (step: AgentStep) => { if (my === reqId.current) setLiveSteps((prev) => [...prev, step]); };
+      // The local engine answers almost instantly. Its real steps are shown one at a time, briefly enough to read
+      // (about 1.5 seconds in all); nothing is shown that the engine didn't actually do.
+      let received = 0;
+      let reveal = Promise.resolve();
+      const onStep = (step: AgentStep) => {
+        received++;
+        reveal = reveal.then(async () => {
+          if (my !== reqId.current) return;
+          setLiveSteps((prev) => [...prev, step]);
+          await wait(Math.max(220, Math.min(420, 1500 / received)));
+        });
+      };
       const answer = await askAgent(q, onStep, ac.signal);
+      await reveal;
       if (my !== reqId.current) return; // conversation was reset
+      if (received) {
+        setStepsDone(true);
+        await wait(260);
+        if (my !== reqId.current) return;
+      }
       setMsgs((m) => [...m, { id: nextId++, role: 'assistant', answer }]);
     } catch (e) {
       if (my !== reqId.current) return;
@@ -201,7 +215,7 @@ export function AssistantView({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, transition: { duration: 0.18 } }}
-            transition={{ ...SETTLE_FAST, delay: 0.3 }}
+            transition={{ duration: 0.3, ease: EASE, delay: 0.18 }}
           >
             <AgentTrace steps={liveSteps} done={stepsDone} />
           </m.div>
@@ -553,7 +567,7 @@ function AgentTrace({ steps, done }: { steps: AgentStep[]; done: boolean }) {
                   key={i}
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  transition={SETTLE_FAST}
+                  transition={{ duration: 0.28, ease: EASE }}
                   className="overflow-hidden"
                 >
                   <div className="flex items-start gap-2.5 py-1">
@@ -591,7 +605,7 @@ const label = 'mb-2 text-[11px] font-semibold uppercase tracking-wider text-mute
 /** The answer card rises in, then its parts follow one after another. */
 const card: Variants = {
   hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { ...SETTLE, staggerChildren: 0.045, delayChildren: 0.03 } },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE, staggerChildren: 0.07, delayChildren: 0.06 } },
 };
 const pop: Variants = {
   hidden: { opacity: 0, scale: 0.6 },

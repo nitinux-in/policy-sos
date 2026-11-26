@@ -36,13 +36,13 @@ export const project = (velocity: number, decelerationRate = 0.998) => ((velocit
 /** Child that fades and rises into place. */
 export const rise: Variants = {
   hidden: { opacity: 0, y: 10 },
-  show: { opacity: 1, y: 0, transition: SETTLE },
+  show: { opacity: 1, y: 0, transition: { duration: 0.42, ease: EASE } },
 };
 
 /** Smaller rise for dense items (list rows, chips). */
 export const riseSm: Variants = {
   hidden: { opacity: 0, y: 6 },
-  show: { opacity: 1, y: 0, transition: SETTLE_FAST },
+  show: { opacity: 1, y: 0, transition: { duration: 0.32, ease: EASE } },
 };
 
 export const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));

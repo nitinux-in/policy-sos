@@ -1,7 +1,7 @@
 // Curated demo prompts (health and term life only). Each one is covered by the local demo engine's
 // intents and produces the same answer on every run.
 
-import { Baby, OctagonAlert, Scale, ShieldCheck, type LucideIcon } from 'lucide-react';
+import { Baby, BedDouble, FileCheck2, Hospital, OctagonAlert, Scale, ShieldCheck, UserRound, type LucideIcon } from 'lucide-react';
 
 export const PROMPTS = {
   emergency: 'My father has been admitted after a cardiac emergency. Which policy can help, and what should I do?',
@@ -11,6 +11,7 @@ export const PROMPTS = {
   cashless: 'I have a planned surgery next month. How do I get cashless treatment?',
   reimbursement: 'My son was discharged after a hospital stay. How do I file a reimbursement claim?',
   termClaim: 'How does my nominee make a claim on my term life policy?',
+  roomRent: 'What is my room rent limit?',
 } as const;
 
 /** Assistant landing tiles */
@@ -26,6 +27,14 @@ export const CLAIM_SHORTCUTS: { label: string; q: string }[] = [
   { label: 'Cashless for a planned surgery', q: PROMPTS.cashless },
   { label: 'Reimbursement after a hospital stay', q: PROMPTS.reimbursement },
   { label: 'Term life claim: what the nominee needs', q: PROMPTS.termClaim },
+];
+
+/** Assistant start screen on phones: popular topics */
+export const POPULAR_TOPICS: { label: string; q: string; icon: LucideIcon }[] = [
+  { label: 'Cashless for a planned surgery', q: PROMPTS.cashless, icon: Hospital },
+  { label: 'Reimbursement after a hospital stay', q: PROMPTS.reimbursement, icon: FileCheck2 },
+  { label: 'Term life claim: what the nominee needs', q: PROMPTS.termClaim, icon: UserRound },
+  { label: 'My room rent limit', q: PROMPTS.roomRent, icon: BedDouble },
 ];
 
 /** Overview quick questions */

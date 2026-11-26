@@ -1,4 +1,8 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* shadcn's dark: variant follows the app's theme toggle (data-theme on <html>) */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
 /* Inter is the typeface of Ditto's live site (body and headings). Served locally — no font CDN. */
 @font-face { font-family: 'Inter'; src: url('/fonts/Inter-Regular.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
@@ -10,15 +14,15 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 
   /* Surfaces */
-  --color-page: #f7f8fa;
+  --color-page: #f2f4f7;
   --color-surface: #ffffff;
-  --color-line: #e4e7eb;
-  --color-line-2: #eef1f4;
+  --color-line: #e6e9ee;
+  --color-line-2: #eef0f4;
 
   /* Text — near-black and blue-grey neutrals from Ditto's text tokens; all ≥ 4.5:1 on page and surface */
   --color-ink: #17191c;
   --color-ink-2: #364752;
-  --color-ink-3: #51636f;
+  --color-ink-3: #56636e;
 
   /* Action blue: Ditto's primary link blue. White text on it is 4.6:1. */
   --color-primary: #0871ea;
@@ -34,7 +38,7 @@
   /* Medical-urgency banner (white text on it is 6.4:1 in both themes) */
   --color-urgent: #b42318;
 
-  /* Selective warm accent (Ditto's campaign yellow) — used once, for the companion prompt */
+  /* Selective warm accent (Ditto's campaign yellow) — used once, for the assistant hero on Overview */
   --color-sun: #ffe17a;
   --color-sun-ink: #3d3000;
 
@@ -47,8 +51,12 @@
   --color-bad-bg: #fdecea;
 
   /* Elevation — soft blue-grey shadows in the style of Ditto's card shadows */
-  --shadow-card: 0 1px 2px #8d9da81f, 0 1px 16px #8d9da814;
-  --shadow-float: 0 4px 28px #00000014, 0 1px 3px #8d9da82e;
+  --shadow-card: 0 1px 2px #1018280a, 0 8px 24px -12px #10182814;
+  --shadow-float: 0 12px 32px -8px #10182833, 0 2px 6px #1018280f;
+
+  /* Soft sky gradient for assistant surfaces (Ditto blue, lightened) */
+  --color-sky-from: #d6e8ff;
+  --color-sky-to: #f5f9ff;
 
   --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -79,7 +87,13 @@
     --color-bad-bg: #3b1715;
     --shadow-card: 0 1px 2px #0000004d;
     --shadow-float: 0 8px 32px #00000080, 0 1px 3px #0000004d;
+    --color-sky-from: #12284a;
+    --color-sky-to: #161a1f;
 }
+
+.logo-dark { display: none; }
+:root[data-theme='dark'] .logo-light { display: none; }
+:root[data-theme='dark'] .logo-dark { display: inline; }
 
 html {
   color-scheme: light;
@@ -125,7 +139,7 @@ h1, h2, h3 {
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @utility animate-sheet { animation: sheet-up 0.26s var(--ease-out-soft); }
 @utility animate-drawer { animation: slide-in-right 0.22s var(--ease-out-soft); }
-@utility animate-in { animation: fade-up 0.2s ease-out both; }
+@utility animate-rise { animation: fade-up 0.2s ease-out both; }
 @utility animate-fade { animation: fade 0.18s ease-out both; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -145,3 +159,70 @@ h1, h2, h3 {
 .md strong { font-weight: 600; color: var(--color-ink); }
 .md em { color: var(--color-ink-3); }
 .md > :last-child { margin-bottom: 0; }
+
+/* shadcn/ui semantic tokens, mapped onto the Ditto tokens above. Dark values follow automatically,
+   because the Ditto tokens are redefined under [data-theme='dark']. */
+:root {
+  --radius: 1rem;
+  --background: var(--color-page);
+  --foreground: var(--color-ink);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-ink);
+  --popover: var(--color-surface);
+  --popover-foreground: var(--color-ink);
+  --primary-foreground: #ffffff;
+  --secondary: var(--color-line-2);
+  --secondary-foreground: var(--color-ink);
+  --muted: var(--color-line-2);
+  --muted-foreground: var(--color-ink-3);
+  --accent: var(--color-primary-tint);
+  --accent-foreground: var(--color-primary-ink);
+  --destructive: var(--color-urgent);
+  --border: var(--color-line);
+  --input: var(--color-line);
+  --ring: var(--color-primary);
+  --sidebar: var(--color-surface);
+  --sidebar-foreground: var(--color-ink-2);
+  --sidebar-primary: var(--color-primary);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--color-primary-tint);
+  --sidebar-accent-foreground: var(--color-primary-ink);
+  --sidebar-border: var(--color-line);
+  --sidebar-ring: var(--color-primary);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * { border-color: var(--color-border); }
+}

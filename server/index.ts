@@ -54,5 +54,5 @@ app.get(/^\/(?!api).*/, (_req, res) => res.sendFile(path.join(dist, 'index.html'
 
 const port = Number(process.env.PORT) || 8787;
 app.listen(port, '0.0.0.0', () => {
-  console.log(`Ditto Insurance Companion (unofficial concept) API on http://localhost:${port} — local demo engine (sample data, no external AI)`);
+  console.log(`Ditto Insurance Companion API on http://localhost:${port} — local rule-based engine, no external AI`);
 });

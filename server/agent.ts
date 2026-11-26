@@ -76,7 +76,7 @@ class Collector {
       plan: this.plan,
       safetyNotice: opts.emergency ? 'Urgent care first — call 112. Don’t wait for insurance.' : undefined,
       untrustedNotice: this.injectionSeen
-        ? 'A sample uploaded document contains instructions aimed at the assistant. They were removed and treated as untrusted text, not policy evidence.'
+        ? 'An uploaded document contains instructions aimed at the assistant. They were removed and treated as untrusted text, not policy evidence.'
         : undefined,
       suggestions: opts.suggestions,
     };
@@ -234,7 +234,7 @@ function resolveIntent(t: string, cats: ActiveCategory[], named: Policy[]): Inte
 }
 
 function clarify(col: Collector, head: string): AgentAnswer {
-  return col.answer(`${head}\n\nThis concept answers set questions about the sample health and term life policies. Try one of these:`, { suggestions: SUGGESTED_PROMPTS });
+  return col.answer(`${head}\n\nI answer questions about your health and term life policies. Try one of these:`, { suggestions: SUGGESTED_PROMPTS });
 }
 
 /** Policies a question is about: named ones, else the detected categories, else the best search matches. */
@@ -260,12 +260,12 @@ function runCompare(col: Collector, message: string, cats: ActiveCategory[], nam
   if (ids.length < 2) {
     const p = portfolio.policies.find((x) => x.id === ids[0])!;
     return col.answer(
-      `**You have one ${CATEGORY_LABEL[p.category as ActiveCategory]} policy in the sample portfolio, so there's nothing to compare it with.**\n\n- Ask me to explain ${p.name} instead.`,
+      `**You have one ${CATEGORY_LABEL[p.category as ActiveCategory]} policy in your portfolio, so there's nothing to compare it with.**\n\n- Ask me to explain ${p.name} instead.`,
       { suggestions: [`Explain my ${p.name} policy`] },
     );
   }
   const cmp = col.call('comparePolicies', { policyIds: ids, criteria: [] });
-  if (!cmp.rows) return col.answer('**I couldn’t build that comparison from the sample data.**');
+  if (!cmp.rows) return col.answer('**I couldn’t build that comparison from your policy data.**');
   const label = cats.length === 1 ? `${CATEGORY_LABEL[cats[0]]} ` : '';
   return col.answer(
     `**Here's how your ${label}policies compare.**\n\n- Each row shows the matching clause from each policy.\n- "Not specified" means the data doesn't say — it is not a confirmed gap.\n- No single policy is "best"; it depends on who needs cover and for what.`,
@@ -278,7 +278,7 @@ function runExplain(col: Collector, message: string, t: string, cats: ActiveCate
   const targets = ids.slice(0, 2);
   const many = targets.length > 1;
   const policies = targets.map((id) => portfolio.policies.find((p) => p.id === id)!);
-  const source = '- From the sample policy schedule and clauses. Your insurer’s documents are the final word.';
+  const source = '- From your policy schedule and clauses. Your insurer’s documents are the final word.';
 
   // Who is insured: straight from the policy record
   if (WHO_COVERED.test(t)) {
@@ -304,7 +304,7 @@ function runExplain(col: Collector, message: string, t: string, cats: ActiveCate
     for (const p of policies) {
       const r = col.call('retrievePolicyEvidence', { policyId: p.id, topics: [] });
       const items: EvidenceItem[] = (r.evidence ?? []).filter((e: EvidenceItem) => e.type === type);
-      if (!items.length) lines.push(`- **${p.name}:** none listed in the sample data.`);
+      if (!items.length) lines.push(`- **${p.name}:** none listed in the policy.`);
       for (const e of items) lines.push(`- ${many ? `**${p.name}** — ` : ''}**${e.title}** (${e.section}): ${e.text}`);
     }
     return col.answer(`**${label} in ${policies.map((p) => p.name).join(' and ')}.**\n\n${lines.join('\n')}\n${source}`);
@@ -319,7 +319,7 @@ function runExplain(col: Collector, message: string, t: string, cats: ActiveCate
       const r = col.call('retrievePolicyEvidence', { policyId: id, topics: [phrase] });
       const exact: EvidenceItem[] = (r.evidence ?? []).filter((e: EvidenceItem) => clauseTopics(e.clauseId).includes(phrase));
       const name = portfolio.policies.find((p) => p.id === id)!.name;
-      if (!exact.length) lines.push(`- **${name}:** no clause about ${phrase} in the sample data.`);
+      if (!exact.length) lines.push(`- **${name}:** no clause about ${phrase}.`);
       for (const e of exact.slice(0, 2)) { found.push(e); lines.push(`- **${name}** — ${e.title} (${e.section}): ${e.text}`); }
     }
     const head = found.length === 1 ? `**${found[0].title} (${found[0].section}).**` : `**What your policies say about ${phrase}.**`;
@@ -347,7 +347,7 @@ function runExplain(col: Collector, message: string, t: string, cats: ActiveCate
       // e.g. death benefit + accidental death rider: show a second benefit of the same kind
       if (!many && ev[1] && ev[0].type === 'benefit' && ev[1].type === 'benefit') lines.push(`- Also: ${ev[1].title} (${ev[1].section}): ${ev[1].text}`);
     } else if (!general) {
-      lines.push(`- ${pol.name}: not mentioned in the sample policy data.`);
+      lines.push(`- ${pol.name}: not mentioned in the policy.`);
     } else {
       const pick = (types: string[]) => ev.find((e) => types.includes(e.type));
       if (!head) head = targets.length === 1 ? `**${pol.name} at a glance.**` : `**Here's what your ${CATEGORY_LABEL[pol.category as ActiveCategory]} policies say.**`;
@@ -361,7 +361,7 @@ function runExplain(col: Collector, message: string, t: string, cats: ActiveCate
       if (watch && targets.length === 1) lines.push(`- Watch for: ${watch.title} (${watch.section}).`);
     }
   }
-  if (!head) return clarify(col, '**I couldn’t find that detail in the sample policy data.** “Not found” here means the data doesn’t say — not that it’s excluded.');
+  if (!head) return clarify(col, '**I couldn’t find that detail in your policies.** “Not found” here means the data doesn’t say — not that it’s excluded.');
   lines.push(source);
   return col.answer(`${head}\n\n${lines.join('\n')}`);
 }
@@ -391,14 +391,14 @@ function runClaimProcess(col: Collector, message: string, cats: ActiveCategory[]
   }
   col.call('generateActionPlan', { scenario: message, policyIds: targets, urgent: false });
   const names = targets.map((id) => portfolio.policies.find((p) => p.id === id)!.name).join(' and ');
-  if (!lines.length) return col.answer(`**The sample data doesn’t describe a claim process for ${names}.** Contact the insurer for the steps.`);
-  return col.answer(`**How to claim under ${names}.**\n\n${lines.join('\n')}\n- Your insurer decides the claim; these steps come from the sample policy wording.`);
+  if (!lines.length) return col.answer(`**Your policy data doesn’t describe a claim process for ${names}.** Contact the insurer for the steps.`);
+  return col.answer(`**How to claim under ${names}.**\n\n${lines.join('\n')}\n- Your insurer decides the claim; these steps come from the policy wording.`);
 }
 
 function runScenario(col: Collector, message: string, t: string, cats: ActiveCategory[], named: Policy[], emergency: boolean): AgentAnswer {
   const useCats: ActiveCategory[] = emergency ? ['health'] : cats;
   const ids = pickPolicies(col, message, useCats, named);
-  if (!ids?.length) return clarify(col, '**I couldn’t match this to a policy in the sample portfolio.**');
+  if (!ids?.length) return clarify(col, '**I couldn’t match this to one of your policies.**');
 
   const scenario = toolScenario(message);
   for (const id of ids) col.call('retrievePolicyEvidence', { policyId: id, topics: topicWords(scenario) });
@@ -425,7 +425,7 @@ function runScenario(col: Collector, message: string, t: string, cats: ActiveCat
       ? `**Likely covered under ${best.policyName} — conditions apply.**`
       : best?.status === 'Uncertain'
         ? '**Possibly covered — it depends on details the policy data doesn’t settle.**'
-        : '**The sample policy data doesn’t show cover for this.**';
+        : '**Your policies don’t show cover for this.**';
   const guarantee = GUARANTEE.test(t) ? "**I can't guarantee approval — only your insurer decides.** Here's what the policy data says:\n\n" : '';
   // Each policy's verdict and the conditions to check live on its coverage card (the same result objects
   // the answer carries). The headline text only adds what the cards don't show: policies the app hides
@@ -456,7 +456,7 @@ function guard(message: string, insuranceRelated: boolean): AgentAnswer | null {
   const letters = message.replace(/[^\p{L}]/gu, '');
   if (letters.length < 2) return blocked("**I didn't catch that.**\n\nTry one of these:", 'Unclear input');
   if (/(.)\1{9,}/.test(message) || (letters.length > 20 && !/[aeiou]/i.test(letters))) return blocked("**That doesn't look like a question.**\n\nDescribe what happened in a sentence, or try:", 'Unreadable input');
-  if (JAILBREAK.test(message)) return blocked(`**I can't change how I work.**\n\nI only answer from the ${portfolio.policies.length} sample health and term life policies. Try:`, 'Manipulation attempt blocked');
+  if (JAILBREAK.test(message)) return blocked(`**I can't change how I work.**\n\nI only answer from the your ${portfolio.policies.length} health and term life policies. Try:`, 'Manipulation attempt blocked');
   if (ABUSE.test(message) && !insuranceRelated) return blocked("**I'm here to help with your insurance.**\n\nTell me what happened, or try:", 'Abusive input');
   return null;
 }
@@ -476,28 +476,28 @@ export async function runAgent(message: string, emit: (s: AgentStep) => void): P
 
   const col = new Collector(emit);
   if (FOLLOW_UP.test(t) && cats.length === 0 && named.length === 0) {
-    col.note({ tool: 'resolveIntent', label: 'Matching your question to a demo scenario', detail: 'Follow-up without context', ok: true });
-    return clarify(col, '**Please ask the full question.** This demo answers each question on its own and doesn’t carry context from earlier messages — e.g. “Is maternity covered for my wife?”');
+    col.note({ tool: 'resolveIntent', label: 'Matching your question to a supported topic', detail: 'Follow-up without context', ok: true });
+    return clarify(col, '**Please ask the full question.** I answer each question on its own and don’t carry context from earlier messages — e.g. “Is maternity covered for my wife?”');
   }
   if (GREETING.test(t.trim())) {
-    col.note({ tool: 'resolveIntent', label: 'Matching your question to a demo scenario', detail: 'Greeting', ok: true });
-    return col.answer(`**Hi ${portfolio.user.name.split(' ')[0]}.** I can answer questions about your sample health and term life policies, with the clause that supports each answer. Try one of these:`, { suggestions: SUGGESTED_PROMPTS });
+    col.note({ tool: 'resolveIntent', label: 'Matching your question to a supported topic', detail: 'Greeting', ok: true });
+    return col.answer(`**Hi ${portfolio.user.name.split(' ')[0]}.** I can answer questions about your health and term life policies, with the clause that supports each answer. Try one of these:`, { suggestions: SUGGESTED_PROMPTS });
   }
   if (!insuranceRelated) {
-    col.note({ tool: 'resolveIntent', label: 'Matching your question to a demo scenario', detail: 'Not an insurance question', ok: true });
-    return clarify(col, '**I can only help with the policies in this demo.**');
+    col.note({ tool: 'resolveIntent', label: 'Matching your question to a supported topic', detail: 'Not an insurance question', ok: true });
+    return clarify(col, '**I can only help with your health and term life policies.**');
   }
   if (outOfScope && !cats.length && !named.length) {
-    col.note({ tool: 'resolveIntent', label: 'Matching your question to a demo scenario', detail: 'Outside health and term life', ok: true });
-    return clarify(col, '**This concept covers health and term life insurance only.** It doesn’t answer questions about car, travel, home or personal accident insurance.');
+    col.note({ tool: 'resolveIntent', label: 'Matching your question to a supported topic', detail: 'Outside health and term life', ok: true });
+    return clarify(col, '**I cover health and term life insurance only.** I can’t answer questions about car, travel, home or personal accident insurance.');
   }
   if (UNSUPPORTED.test(t)) {
-    col.note({ tool: 'resolveIntent', label: 'Matching your question to a demo scenario', detail: 'Not supported in this demo', ok: true });
-    return clarify(col, '**This demo can’t buy, change or file anything with an insurer.** It only explains the sample policies already in the portfolio.');
+    col.note({ tool: 'resolveIntent', label: 'Matching your question to a supported topic', detail: 'Not supported', ok: true });
+    return clarify(col, '**I can’t buy, change or file anything with an insurer.** I only explain the policies already in your portfolio.');
   }
-  if (outOfScope) col.scopeNote = 'This concept covers health and term life only, so any car, travel, home or personal accident part of the question isn’t answered.';
+  if (outOfScope) col.scopeNote = 'I cover health and term life only, so any car, travel, home or personal accident part of the question isn’t answered.';
   const intent = resolveIntent(t, cats, named);
-  col.note({ tool: 'resolveIntent', label: 'Matching your question to a demo scenario', detail: INTENT_LABEL[intent], ok: true });
+  col.note({ tool: 'resolveIntent', label: 'Matching your question to a supported topic', detail: INTENT_LABEL[intent], ok: true });
 
   switch (intent) {
     case 'compare': return runCompare(col, message, cats, named);

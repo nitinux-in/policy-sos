@@ -1,8 +1,8 @@
-# Ditto Insurance Companion — unofficial concept
+# Ditto Insurance Companion
 
-A policy companion for **health and term life insurance**: it explains what your policies say, checks a situation against the policy wording, compares plans, estimates out-of-pocket costs when there's enough information, and prepares claim steps.
+A policy assistant for **health and term life insurance**: it explains what your policies say, checks a situation against the policy wording, compares plans, estimates out-of-pocket costs when there's enough information, and prepares claim steps.
 
-> **Unofficial design concept.** This is a portfolio project (Mission 003 of a 100-day build challenge) that explores Ditto's visual language for a new product idea. It is not made, endorsed or operated by Ditto. All people, insurers, policies, clauses and claims are **sample data**, not real contracts.
+> Portfolio project (Mission 003 of a 100-day build challenge). All people, insurers, policies, clauses and claims are **sample data**, not real contracts. Not an official Ditto product; the Ditto name and logo belong to Ditto.
 
 ## Run it
 
@@ -23,11 +23,11 @@ Open **http://localhost:5173**. The API runs on port 8787; Vite forwards `/api` 
 | `npm start` | Builds, then serves the built app from the API server |
 | `npm run check:engine` | Runs 72 assistant prompts twice and compares them with the saved snapshot (see below) |
 
-Shortcut for demos: `http://localhost:5173/?ask=Compare%20my%20health%20policies` opens the companion with that question.
+Shortcut for demos: `http://localhost:5173/?ask=Compare%20my%20health%20policies` opens the assistant with that question.
 
 ## How answers are produced
 
-There is **no AI model** behind the companion — not Gemini or any other provider. The hackathon prototype this grew from used the Gemini API; that integration, its SDK and its API key have been removed entirely.
+There is **no AI model** behind the assistant — not Gemini or any other provider. The hackathon prototype this grew from used the Gemini API; that integration, its SDK and its API key have been removed entirely.
 
 Every answer comes from a **deterministic local engine** (`server/agent.ts`):
 
@@ -58,12 +58,13 @@ The engine answers each question on its own (no memory of earlier messages) and 
 
 ## Design
 
-The visual language is translated from Ditto's site (see `../DITTO_DESIGN_SYSTEM.md`), not copied from it.
+The visual language is translated from Ditto's site (see `../DITTO_DESIGN_SYSTEM.md`), not copied from it. Ditto's site has no dashboard components, so the UI is built with **shadcn/ui** (Radix-based components in `src/components/ui`, added with the shadcn CLI) and themed entirely with Ditto tokens: every shadcn colour variable in `src/index.css` maps to a Ditto value, and the components were tuned to Ditto's 12px radius and 44px touch targets. The Ditto wordmark (light and dark versions) and a favicon cut from its blue mark live in `public/brand`.
 
 - **Type:** Inter — the typeface on Ditto's live site — served locally as subset WOFF2 files (`public/fonts`, about 120 KB in total).
 - **Colour:** tokens are in `src/index.css`. Near-black text with blue-grey neutrals, Ditto's link blue `#0871ea` for actions, focus and selection, muted status colours, and campaign yellow used once (the Overview question card).
 - **Themes:** light by default, with a dark theme from the header toggle (remembered on that device). All text pairings pass WCAG AA in both themes.
-- **Layout:** phone — bottom tabs and floating Ask button; from 768 px — top navigation; from 1024 px — the companion docks beside the dashboard.
+- **Layout:** soft, airy surfaces — a cool light-grey page, borderless white cards with large radii, light-weight headings and figures. Desktop: Ditto logo, centred pill navigation (Home · Assistant · Policies · Claims · Documents), theme toggle and profile. Phones: logo header, compact cards and a floating dark pill navigation with the Ask button in the middle.
+- **Assistant:** the hero. Home opens with a sky-gradient Ask card (pill search bar, quick questions, the Ditto mascot). The assistant is its own page: a centred conversation with the mascot as avatar and, from 1280 px, a right rail showing the latest answer's sources, unverified points and steps. On phones it opens full-screen with a sky header, quick questions and popular topics. Mascot artwork lives in `public/brand`.
 - **Accessibility:** dialogs trap focus, close on Escape and return focus to their trigger; switching tabs moves focus to the page heading and updates the title; visible focus rings; 44 px touch targets; live announcements for answers and filter results; reduced motion respected.
 
 ## Project structure
@@ -77,10 +78,12 @@ shared/
   demo.ts         Product name, demo date, active categories, data scoping
   types.ts        Shared data and answer types
 src/
-  App.tsx         Shell: header, navigation, theme, companion placement
-  screens.tsx     Overview, Policies (+ policy detail), Claims, Documents
-  Assistant.tsx   Companion panel and answer components
-  ui.tsx          Buttons, pills, disclosures, accessible overlays, theme toggle
+  App.tsx         Shell: header with pill navigation, phone pill nav, theme, assistant routing
+  screens.tsx     Overview dashboard, Policies (+ policy detail), Claims, Documents
+  Assistant.tsx   Assistant page (phone: full-screen view) — one card per answer; sources in the desktop rail
+  ui.tsx          Ditto logo and mascot, status badges, cards (on shadcn Card), theme toggle, overlay focus
+  components/ui/  shadcn/ui components (Button, Card, Table, Badge, Sheet, Accordion, ToggleGroup, …)
+  format.ts       Formatting helpers and the chat API client
   prompts.ts      Curated prompts used by tiles and shortcuts
   index.css       Design tokens, light/dark themes, fonts, motion
 scripts/

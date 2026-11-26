@@ -1,43 +1,50 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileText, LayoutGrid, MessageCircleQuestion, Receipt, Shield } from 'lucide-react';
 import type { Policy, PortfolioData } from '../shared/types';
-import { DEMO_TODAY, PRODUCT_NAME } from '../shared/demo';
 import { ClaimsScreen, DocumentsScreen, OverviewScreen, PoliciesScreen, PolicySheet } from './screens';
-import { Assistant, ASSISTANT_PANEL_ID } from './Assistant';
-import { btn, ConceptTag, ThemeToggle, useMediaQuery, useTheme } from './ui';
-import { fmtDate } from './lib';
+import { AssistantView } from './Assistant';
+import { DittoLogo, PersonAvatar, ThemeToggle, useMediaQuery, useTheme } from './ui';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
-export type Tab = 'overview' | 'policies' | 'claims' | 'documents';
+export type Tab = 'overview' | 'assistant' | 'policies' | 'claims' | 'documents';
 
-const TABS: { id: Tab; label: string; icon: typeof LayoutGrid }[] = [
-  { id: 'overview', label: 'Overview', icon: LayoutGrid },
+const NAV: { id: Tab; label: string; icon: typeof LayoutGrid }[] = [
+  { id: 'overview', label: 'Home', icon: LayoutGrid },
+  { id: 'assistant', label: 'Assistant', icon: MessageCircleQuestion },
   { id: 'policies', label: 'Policies', icon: Shield },
   { id: 'claims', label: 'Claims', icon: Receipt },
   { id: 'documents', label: 'Documents', icon: FileText },
 ];
 
-export const container = 'mx-auto w-full max-w-[1120px] px-4 sm:px-6';
+export type AskRequest = { q: string; n: number } | null;
 
 export default function App() {
   const [data, setData] = useState<PortfolioData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('overview');
+  const [returnTab, setReturnTab] = useState<Tab>('overview');
   const [openPolicy, setOpenPolicy] = useState<Policy | null>(null);
-  const [assistant, setAssistant] = useState<{ open: boolean; prompt?: string; key: number }>({ open: false, key: 0 });
-  // From 1024px the companion docks beside the dashboard instead of covering it
-  const docked = useMediaQuery('(min-width: 1024px)');
+  // The assistant keeps its conversation while people move between tabs, so it stays mounted once opened
+  const [assistantMounted, setAssistantMounted] = useState(false);
+  const [request, setRequest] = useState<AskRequest>(null);
+  const wide = useMediaQuery('(min-width: 768px)');
   const [theme, toggleTheme] = useTheme();
 
   // On tab change: name the page in the document title and move focus to its heading, so keyboard and
   // screen-reader users land at the start of the new content (skipped on first load).
   const prevTab = useRef(tab);
   useEffect(() => {
-    const label = TABS.find((t) => t.id === tab)?.label ?? '';
-    document.title = `${label} · ${PRODUCT_NAME} · Unofficial concept`;
+    const label = NAV.find((t) => t.id === tab)?.label ?? '';
+    document.title = `${label} · Ditto`;
     if (prevTab.current === tab) return;
+    const from = prevTab.current;
     prevTab.current = tab;
-    document.querySelector<HTMLElement>('main h1')?.focus({ preventScroll: true });
-  }, [tab]);
+    // On phones the full-screen assistant manages focus itself: in on open, back to the Ask button on close
+    if (!wide && (tab === 'assistant' || from === 'assistant')) return;
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('main h1:not([hidden] *)')?.focus({ preventScroll: true }));
+  }, [tab, wide]);
 
   const load = () => {
     setLoadError(null);
@@ -48,165 +55,148 @@ export default function App() {
   };
   useEffect(load, []);
 
-  // Demo shortcut: /?ask=your+question opens the companion with that question
+  const goTo = useCallback((t: Tab) => {
+    setOpenPolicy(null);
+    if (t === 'assistant') setAssistantMounted(true);
+    setTab((current) => {
+      if (t === 'assistant' && current !== 'assistant') setReturnTab(current);
+      return t;
+    });
+    window.scrollTo({ top: 0 });
+  }, []);
+
+  /** Opens the assistant, optionally asking a question straight away. */
+  const ask = useCallback((prompt?: string) => {
+    goTo('assistant');
+    if (prompt) setRequest({ q: prompt, n: Date.now() });
+  }, [goTo]);
+
+  // Shortcut: /?ask=your+question opens the assistant with that question
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get('ask');
-    if (q) setAssistant((a) => ({ open: true, prompt: q.slice(0, 1500), key: a.key + 1 }));
-  }, []);
+    if (q) ask(q.slice(0, 1500));
+  }, [ask]);
 
-  const ask = useCallback((prompt?: string) => {
-    setOpenPolicy(null);
-    setAssistant((a) => {
-      // Already open and nothing new to ask: keep the conversation and just move focus to it
-      if (a.open && !prompt) {
-        requestAnimationFrame(() => document.getElementById(ASSISTANT_PANEL_ID)?.focus());
-        return a;
-      }
-      return { open: true, prompt, key: a.key + 1 };
-    });
-  }, []);
-
-  const goTo = (t: Tab) => {
-    setTab(t);
-    window.scrollTo({ top: 0 });
-  };
-
-  const sideBySide = assistant.open && docked;
+  const first = data?.user.name.split(' ')[0] ?? '';
 
   return (
-    <div className="min-h-dvh">
-      <a href="#main" className="sr-only z-[60] rounded-lg bg-primary px-4 py-2 font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-3">
-        Skip to content
-      </a>
+    <TooltipProvider delayDuration={300}>
+      <div className="min-h-dvh">
+        <a href="#main" className="sr-only z-[60] rounded-full bg-primary px-4 py-2 font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-3">
+          Skip to content
+        </a>
 
-      <header className="sticky top-0 z-30 border-b border-line bg-surface">
-        <div className={`${container} flex h-16 items-center gap-4 ${sideBySide ? 'lg:ml-0 lg:max-w-[840px]' : ''}`}>
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-white" aria-hidden="true">
-              <MessageCircleQuestion size={19} strokeWidth={2} />
-            </span>
-            <div className="min-w-0 sm:flex sm:items-center sm:gap-2.5">
-              <p className="truncate text-[15px] font-semibold tracking-tight">{PRODUCT_NAME}</p>
-              <ConceptTag />
+        <header className="sticky top-0 z-30 bg-background">
+          <div className="mx-auto flex h-16 max-w-[1360px] items-center gap-4 px-4 md:h-20 md:px-6">
+            <DittoLogo className="h-6 md:h-7" />
+
+            {/* Tablet and desktop: pill navigation */}
+            <nav aria-label="Main" className="mx-auto hidden md:block">
+              <ul className="flex items-center gap-1 rounded-full bg-card p-1 shadow-card">
+                {NAV.map((t) => (
+                  <li key={t.id}>
+                    <button
+                      type="button"
+                      onClick={() => (t.id === 'assistant' ? ask() : goTo(t.id))}
+                      aria-current={tab === t.id ? 'page' : undefined}
+                      {...(t.id === 'assistant' ? { 'data-ask-trigger': '' } : {})}
+                      className="flex h-10 items-center gap-2 rounded-full px-4 text-[14px] font-medium text-ink-2 transition-colors hover:text-ink aria-[current=page]:bg-ink aria-[current=page]:text-white dark:aria-[current=page]:bg-accent dark:aria-[current=page]:text-accent-foreground lg:px-5"
+                    >
+                      {t.id === 'assistant' && <MessageCircleQuestion className="size-4" aria-hidden="true" />}
+                      {t.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+
+            <div className="ml-auto flex items-center gap-2 md:ml-0">
+              <ThemeToggle theme={theme} onToggle={toggleTheme} />
+              {data && <PersonAvatar name={data.user.name} />}
             </div>
           </div>
+        </header>
 
-          <nav aria-label="Main" className="ml-auto hidden h-full md:block">
-            <ul className="flex h-full items-stretch gap-1">
-              {TABS.map((t) => (
-                <li key={t.id} className="flex">
-                  <button
-                    type="button"
-                    onClick={() => goTo(t.id)}
-                    aria-current={tab === t.id ? 'page' : undefined}
-                    className="focus-ring-inset border-b-2 border-transparent px-3 text-[15px] font-medium text-ink-2 transition-colors hover:text-ink aria-[current=page]:border-primary aria-[current=page]:text-ink"
-                  >
-                    {t.label}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </nav>
-          <div className="ml-auto md:ml-0">
-            <ThemeToggle theme={theme} onToggle={toggleTheme} />
-          </div>
-          {data && !sideBySide && (
-            <div className="hidden md:block">
-              <button type="button" onClick={() => ask()} className={btn.primary} data-ask-trigger="">
-                <MessageCircleQuestion size={18} aria-hidden="true" /> Ask the companion
-              </button>
-            </div>
-          )}
-        </div>
-      </header>
-
-      <div className={sideBySide ? 'mr-[440px]' : ''}>
-        <main id="main" tabIndex={-1} className={`${container} pb-40 pt-6 outline-none md:pb-16 md:pt-10`}>
+        <main id="main" tabIndex={-1} className="@container mx-auto w-full max-w-[1360px] px-4 pb-32 outline-none md:px-6 md:pb-10">
           {!data && !loadError && <LoadingState />}
           {loadError && (
             <div className="mx-auto max-w-md py-24 text-center" role="alert">
-              <h1 className="text-[20px] font-bold">Couldn’t load the sample policies</h1>
+              <h1 className="text-[20px] font-semibold">Couldn’t load your policies</h1>
               <p className="mt-2 text-ink-2">{loadError}. Make sure the app server is running, then try again.</p>
-              <button type="button" onClick={load} className={`${btn.primary} mt-5`}>Try again</button>
+              <Button type="button" onClick={load} className="mt-5">Try again</Button>
             </div>
           )}
-          {data && tab === 'overview' && <OverviewScreen data={data} onOpenPolicy={setOpenPolicy} onAsk={ask} />}
-          {data && tab === 'policies' && <PoliciesScreen data={data} onOpenPolicy={setOpenPolicy} />}
+          {data && tab === 'overview' && <OverviewScreen data={data} onOpenPolicy={setOpenPolicy} onAsk={ask} onNavigate={goTo} />}
+          {data && tab === 'policies' && <PoliciesScreen data={data} onOpenPolicy={setOpenPolicy} onAsk={ask} />}
           {data && tab === 'claims' && <ClaimsScreen data={data} onAsk={ask} />}
           {data && tab === 'documents' && <DocumentsScreen data={data} />}
-          {data && <Disclosure />}
+          {data && assistantMounted && (
+            <AssistantView
+              data={data}
+              active={tab === 'assistant'}
+              wide={wide}
+              request={request}
+              firstName={first}
+              onOpenPolicy={setOpenPolicy}
+              onClose={() => goTo(returnTab === 'assistant' ? 'overview' : returnTab)}
+            />
+          )}
         </main>
+
+        {/* Phone: floating dark pill navigation with the assistant in the middle */}
+        {data && (
+          <nav aria-label="Main" className="fixed inset-x-3 bottom-[max(env(safe-area-inset-bottom),12px)] z-40 md:hidden">
+            <ul className="grid h-16 grid-cols-5 items-center rounded-full bg-ink px-1.5 shadow-float dark:bg-[#232831]">
+              {(['overview', 'policies', 'assistant', 'claims', 'documents'] as const).map((id) => {
+                const t = NAV.find((n) => n.id === id)!;
+                const current = tab === id;
+                if (id === 'assistant') {
+                  return (
+                    <li key={id} className="flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() => ask()}
+                        data-ask-trigger=""
+                        aria-label="Ask a question"
+                        aria-current={current ? 'page' : undefined}
+                        className="grid size-12 place-items-center rounded-full bg-primary text-white shadow-float transition-colors hover:bg-primary-strong"
+                      >
+                        <MessageCircleQuestion className="size-[22px]" aria-hidden="true" />
+                      </button>
+                    </li>
+                  );
+                }
+                return (
+                  <li key={id}>
+                    <button
+                      type="button"
+                      onClick={() => goTo(id)}
+                      aria-current={current ? 'page' : undefined}
+                      className={`flex h-14 w-full flex-col items-center justify-center gap-0.5 rounded-full text-[12px] font-medium transition-colors ${current ? 'text-white' : 'text-white/60 hover:text-white'}`}
+                    >
+                      <t.icon className="size-5" strokeWidth={current ? 2.2 : 1.8} aria-hidden="true" />
+                      {id === 'documents' ? 'Docs' : t.label}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+        )}
+
+        <PolicySheet policy={openPolicy} onClose={() => setOpenPolicy(null)} onAsk={ask} />
       </div>
-
-      {/* Phone: floating entry point to the companion. Stays mounted under the open companion so focus can return to it. */}
-      {data && (
-        <button
-          type="button"
-          onClick={() => ask()}
-          tabIndex={assistant.open ? -1 : undefined}
-          data-ask-trigger=""
-          className="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] right-4 z-20 inline-flex min-h-12 items-center gap-2 rounded-full bg-primary px-5 text-[15px] font-semibold text-white shadow-float transition-colors hover:bg-primary-strong md:hidden"
-        >
-          <MessageCircleQuestion size={19} aria-hidden="true" /> Ask
-        </button>
-      )}
-
-      {/* Phone: bottom tab bar */}
-      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">
-        <ul className="grid grid-cols-4">
-          {TABS.map((t) => {
-            const active = tab === t.id;
-            return (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  onClick={() => goTo(t.id)}
-                  aria-current={active ? 'page' : undefined}
-                  className={`focus-ring-inset flex min-h-14 w-full flex-col items-center justify-center gap-0.5 text-[12px] font-medium ${active ? 'text-link' : 'text-ink-3'}`}
-                >
-                  <t.icon size={21} strokeWidth={active ? 2.2 : 1.8} aria-hidden="true" />
-                  {t.label}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-
-      {openPolicy && <PolicySheet policy={openPolicy} onClose={() => setOpenPolicy(null)} onAsk={ask} />}
-      {assistant.open && data && (
-        <Assistant
-          key={assistant.key}
-          data={data}
-          initialPrompt={assistant.prompt}
-          docked={docked}
-          onClose={() => setAssistant((a) => ({ ...a, open: false }))}
-        />
-      )}
-    </div>
-  );
-}
-
-function Disclosure() {
-  return (
-    <footer className="mt-14 border-t border-line pt-6 text-[13px] leading-relaxed text-ink-3">
-      <p>
-        <span className="font-semibold text-ink-2">{PRODUCT_NAME} is an unofficial design concept.</span> It is not made,
-        endorsed or operated by Ditto. Policies, insurers, people and claims shown are sample data, not real contracts.
-        Answers come from local rules applied to this sample data — not a live AI — and are guidance only. An insurer makes
-        the final decision on any claim.
-      </p>
-      <p className="mt-2">Demo date: {fmtDate(DEMO_TODAY)}</p>
-    </footer>
+    </TooltipProvider>
   );
 }
 
 function LoadingState() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="Loading sample policies">
-      <div className="h-8 w-2/3 max-w-sm animate-pulse rounded-lg bg-line-2" />
-      <div className="grid gap-4 md:grid-cols-2">
-        {[0, 1].map((i) => <div key={i} className="h-48 animate-pulse rounded-2xl bg-line-2" />)}
+    <div className="space-y-4 pt-4" aria-busy="true" aria-label="Loading your policies">
+      <Skeleton className="h-10 w-48 rounded-full" />
+      <Skeleton className="h-56 rounded-3xl" />
+      <div className="grid grid-cols-2 gap-3 @4xl:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-32 rounded-3xl" />)}
       </div>
     </div>
   );

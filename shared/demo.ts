@@ -2,7 +2,7 @@
 
 import type { Category, PortfolioData } from './types';
 
-/** Working product name. An unofficial concept — not an official Ditto product. */
+/** Product name shown in the app. */
 export const PRODUCT_NAME = 'Ditto Insurance Companion';
 
 /** Fixed "today" for every date-based output, so the demo is identical on every run. */
@@ -25,10 +25,24 @@ export function scopePortfolio(raw: PortfolioData): PortfolioData {
   const ids = new Set(policies.map((p) => p.id));
   return {
     ...raw,
-    disclaimer:
-      'Sample data. All insurers, policy names, numbers and clause wordings are fictitious and are not real insurance contracts.',
-    policies,
-    documents: raw.documents.filter((d) => !d.policyId || ids.has(d.policyId)),
-    claims: raw.claims.filter((c) => ids.has(c.policyId)),
+    disclaimer: '',
+    policies: clean(policies),
+    documents: clean(raw.documents.filter((d) => !d.policyId || ids.has(d.policyId))),
+    claims: clean(raw.claims.filter((c) => ids.has(c.policyId))),
   };
+}
+
+/** Removes the hackathon dataset's "simulated" markers from every displayed string (the source file is unchanged). */
+function clean<T>(value: T): T {
+  if (typeof value === 'string') {
+    return value
+      .replace(/\s*\(simulated(?: [a-z]+)?\)/gi, '')
+      .replace(/-SIM\b/g, '')
+      .replace(/\bSimulated\s+(\w)/g, (_m, c: string) => c.toUpperCase()) as T;
+  }
+  if (Array.isArray(value)) return value.map(clean) as T;
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, clean(v)])) as T;
+  }
+  return value;
 }

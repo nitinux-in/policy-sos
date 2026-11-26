@@ -1,93 +1,111 @@
-// Shared UI primitives: buttons, badges, disclosures and accessible dialogs.
+// App-level building blocks on top of shadcn/ui (src/components/ui), carrying the Ditto branding.
 
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
-import { ChevronDown, Moon, Sun, X } from 'lucide-react';
+import { Moon, Sun, X, type LucideIcon } from 'lucide-react';
+import { cn } from 'cn';
 import type { Category, Policy } from '../shared/types';
-import { categoryMeta, policyStatus } from './lib';
+import { categoryMeta, policyStatus } from './format';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 
-// ---------- class recipes ----------
+// ---------- brand ----------
 
-export const btn = {
-  primary:
-    'inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary px-4 text-[15px] font-semibold text-white transition-colors hover:bg-primary-strong active:bg-primary-strong disabled:bg-line disabled:text-ink-3',
-  secondary:
-    'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 text-[14px] font-medium text-ink transition-colors hover:border-ink-3/40 hover:bg-page active:bg-line-2',
-  quiet:
-    'inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-3 text-[14px] font-medium text-link transition-colors hover:bg-primary-tint',
-  icon: 'inline-grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-2 transition-colors hover:bg-line-2 active:bg-line',
-};
+/** Ditto wordmark; the dark-theme file has light letterforms and the same blue mark. */
+export function DittoLogo({ className = '' }: { className?: string }) {
+  return (
+    <span className={cn('inline-flex shrink-0', className)}>
+      <img src="/brand/ditto-logo.png" alt="Ditto" className="logo-light h-full w-auto" />
+      <img src="/brand/ditto-logo-dark.png" alt="Ditto" className="logo-dark h-full w-auto" />
+    </span>
+  );
+}
 
-export const card = 'rounded-2xl border border-line bg-surface shadow-card';
+/** The Ditto mascot's face, used as the assistant's avatar. */
+export function MascotAvatar({ className = '' }: { className?: string }) {
+  return (
+    <span className={cn('inline-grid size-8 shrink-0 place-items-center overflow-hidden rounded-full bg-accent', className)} aria-hidden="true">
+      <img src="/brand/mascot-avatar.png" alt="" className="size-full object-cover" />
+    </span>
+  );
+}
+
+/** The full Ditto mascot (headset and laptop) for assistant surfaces. */
+export function Mascot({ className = '' }: { className?: string }) {
+  return <img src="/brand/mascot-assistant.png" alt="" aria-hidden="true" className={cn('pointer-events-none select-none object-contain', className)} />;
+}
+
+/** Initials avatar for the signed-in person. */
+export function PersonAvatar({ name, className = '' }: { name: string; className?: string }) {
+  const initials = name.split(' ').map((n) => n[0]).slice(0, 2).join('');
+  return (
+    <span className={cn('inline-grid size-10 shrink-0 place-items-center rounded-full bg-ink text-[13px] font-semibold text-white dark:bg-accent dark:text-accent-foreground', className)} aria-hidden="true">
+      {initials}
+    </span>
+  );
+}
 
 // ---------- small display pieces ----------
 
 export function CategoryIcon({ c, size = 'md' }: { c: Category; size?: 'sm' | 'md' }) {
   const m = categoryMeta(c);
-  const box = size === 'sm' ? 'h-9 w-9 rounded-lg' : 'h-11 w-11 rounded-xl';
+  const box = size === 'sm' ? 'size-9' : 'size-10';
   return (
-    <span className={`grid ${box} shrink-0 place-items-center bg-primary-tint text-link`} aria-hidden="true">
-      <m.icon size={size === 'sm' ? 17 : 20} strokeWidth={1.9} />
+    <span className={`grid ${box} shrink-0 place-items-center rounded-full bg-accent text-link`} aria-hidden="true">
+      <m.icon size={size === 'sm' ? 16 : 18} strokeWidth={1.9} />
     </span>
   );
 }
 
-const STATUS_STYLE = {
-  active: 'bg-ok-bg text-ok',
-  renewing: 'bg-warn-bg text-warn',
-  expired: 'bg-bad-bg text-bad',
-  lapsed: 'bg-bad-bg text-bad',
+export const TONE = {
+  ok: 'bg-ok-bg text-ok',
+  warn: 'bg-warn-bg text-warn',
+  bad: 'bg-bad-bg text-bad',
+  neutral: 'bg-muted text-ink-2',
 } as const;
+
+/** A status label (shadcn Badge) in one of the restrained status tones. */
+export function Pill({ children, tone, className = '' }: { children: ReactNode; tone?: keyof typeof TONE; className?: string }) {
+  return <Badge className={cn('px-2 text-[11px] font-medium', tone && TONE[tone], className)}>{children}</Badge>;
+}
+
+const STATUS_TONE = { active: 'ok', renewing: 'warn', expired: 'bad', lapsed: 'bad' } as const;
 
 export function StatusPill({ p }: { p: Policy }) {
   const s = policyStatus(p);
-  return <Pill className={STATUS_STYLE[s.kind]}>{s.label}</Pill>;
+  return <Pill tone={STATUS_TONE[s.kind]}>{s.label}</Pill>;
 }
 
-export function Pill({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-medium ${className}`}>{children}</span>;
-}
+// ---------- dashboard building blocks (shadcn Card) ----------
 
-export function SampleBadge({ label = 'Sample data' }: { label?: string }) {
-  return <Pill className="border border-line bg-surface text-ink-3">{label}</Pill>;
-}
+export const surface = 'rounded-3xl border-0 bg-card shadow-card';
 
-export function ConceptTag() {
-  return <Pill className="bg-sun text-sun-ink">Unofficial concept</Pill>;
-}
-
-// ---------- disclosure ----------
-
-export function Disclosure({
-  summary,
-  children,
-  className = '',
-  buttonClassName = '',
-  defaultOpen = false,
-}: {
-  summary: ReactNode;
-  children: ReactNode;
-  className?: string;
-  buttonClassName?: string;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
+/** A titled dashboard card. The body is a container-query context so content adapts to the card's own width. */
+export function Panel({ title, action, children, className = '', bodyClassName = '' }: { title: string; action?: ReactNode; children: ReactNode; className?: string; bodyClassName?: string }) {
   const id = useId();
   return (
-    <div className={className}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-        aria-controls={id}
-        className={`focus-ring-inset flex w-full items-center justify-between gap-3 text-left ${buttonClassName}`}
-      >
-        <span className="min-w-0 flex-1">{summary}</span>
-        <ChevronDown size={16} aria-hidden="true" className={`shrink-0 text-ink-3 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-      </button>
-      <div id={id} hidden={!open}>
-        {open && children}
+    <Card role="region" aria-labelledby={id} className={cn(surface, 'min-w-0 gap-0 py-0', className)}>
+      <div className="flex min-h-14 items-center justify-between gap-3 px-5 pt-2">
+        <h2 id={id} className="text-[15px] font-semibold tracking-tight">{title}</h2>
+        {action}
       </div>
-    </div>
+      <div className={cn('@container min-w-0 flex-1 pb-2', bodyClassName)}>{children}</div>
+    </Card>
+  );
+}
+
+/** A compact summary figure: icon, optional status, label, value. */
+export function Stat({ label, value, sub, icon: Icon, badge }: { label: string; value: ReactNode; sub?: ReactNode; icon: LucideIcon; badge?: ReactNode }) {
+  return (
+    <Card className={cn(surface, 'min-w-0 gap-0 p-4')}>
+      <div className="flex items-start justify-between gap-2">
+        <span className="grid size-9 place-items-center rounded-full bg-accent text-link" aria-hidden="true"><Icon size={17} /></span>
+        {badge}
+      </div>
+      <p className="mt-3 text-[12px] font-medium text-muted-foreground">{label}</p>
+      <p className="tnum mt-0.5 text-[22px] font-semibold leading-tight tracking-tight @4xl:text-[26px]">{value}</p>
+      {sub && <p className="mt-1 text-[12px] leading-snug text-muted-foreground">{sub}</p>}
+    </Card>
   );
 }
 
@@ -105,24 +123,25 @@ export function useMediaQuery(query: string): boolean {
   );
 }
 
-// ---------- dialog behaviour ----------
+// ---------- overlay behaviour (full-screen assistant on phones) ----------
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
- * Focus management for overlays: moves focus in on open, returns it to the opener on close,
- * closes on Escape, and (when modal) traps Tab inside and locks page scroll.
+ * Focus management while `active`: moves focus in, returns it to the opener when deactivated, closes on Escape,
+ * and (when modal) traps Tab inside and locks page scroll. Policy details use the shadcn Sheet instead.
  */
-export function useOverlay(ref: RefObject<HTMLElement | null>, onClose: () => void, modal: boolean, returnSelector?: string) {
+export function useOverlay(ref: RefObject<HTMLElement | null>, onClose: () => void, modal: boolean, returnSelector?: string, active = true) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
 
   useEffect(() => {
+    if (!active) return;
     // Some browsers (e.g. Safari) don't focus buttons on click, so fall back to the visible trigger
-    const active = document.activeElement as HTMLElement | null;
-    const opener = active && active !== document.body ? active : visibleMatch(returnSelector);
+    const current = document.activeElement as HTMLElement | null;
+    const opener = current && current !== document.body ? current : visibleMatch(returnSelector);
     const el = ref.current;
-    (el?.querySelector<HTMLElement>('[data-autofocus]') ?? el)?.focus({ preventScroll: true });
+    el?.focus({ preventScroll: true });
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -144,10 +163,10 @@ export function useOverlay(ref: RefObject<HTMLElement | null>, onClose: () => vo
     return () => {
       el?.removeEventListener('keydown', onKey);
       if (modal) document.documentElement.style.overflow = prevOverflow;
-      const target = opener && document.contains(opener) ? opener : visibleMatch(returnSelector);
+      const target = opener && document.contains(opener) && opener.offsetParent !== null ? opener : visibleMatch(returnSelector);
       target?.focus({ preventScroll: true });
     };
-  }, [ref, modal, returnSelector]);
+  }, [ref, modal, returnSelector, active]);
 }
 
 function visibleMatch(selector?: string): HTMLElement | null {
@@ -155,32 +174,11 @@ function visibleMatch(selector?: string): HTMLElement | null {
   return [...document.querySelectorAll<HTMLElement>(selector)].find((n) => n.offsetParent !== null || getComputedStyle(n).position === 'fixed') ?? null;
 }
 
-/** Modal panel: a bottom sheet on phones, a right-hand drawer from tablet width up. */
-export function Modal({ labelledBy, onClose, returnSelector, children }: { labelledBy: string; onClose: () => void; returnSelector?: string; children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useOverlay(ref, onClose, true, returnSelector);
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end md:flex-row md:justify-end">
-      <div className="animate-fade absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
-      <div
-        ref={ref}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={labelledBy}
-        tabIndex={-1}
-        className="animate-sheet md:animate-drawer relative flex max-h-[90dvh] w-full flex-col rounded-t-3xl bg-surface shadow-float outline-none md:h-full md:max-h-none md:max-w-[520px] md:rounded-none md:rounded-l-3xl"
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
 export function CloseButton({ onClick, label }: { onClick: () => void; label: string }) {
   return (
-    <button type="button" onClick={onClick} className={btn.icon} aria-label={label}>
-      <X size={20} aria-hidden="true" />
-    </button>
+    <Button type="button" variant="ghost" size="icon" onClick={onClick} aria-label={label} className="text-ink-2">
+      <X className="size-5" aria-hidden="true" />
+    </Button>
   );
 }
 
@@ -208,11 +206,12 @@ export function useTheme(): [Theme, () => void] {
   return [theme, () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))];
 }
 
-export function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
+/** Icon-only theme button. */
+export function ThemeToggle({ theme, onToggle, className = '' }: { theme: Theme; onToggle: () => void; className?: string }) {
   const dark = theme === 'dark';
   return (
-    <button type="button" onClick={onToggle} aria-pressed={dark} aria-label="Dark theme" title={dark ? 'Switch to light theme' : 'Switch to dark theme'} className={btn.icon}>
-      {dark ? <Sun size={19} aria-hidden="true" /> : <Moon size={19} aria-hidden="true" />}
-    </button>
+    <Button type="button" variant="ghost" size="icon" onClick={onToggle} aria-pressed={dark} aria-label="Dark theme" title={dark ? 'Switch to light theme' : 'Switch to dark theme'} className={cn('bg-card text-ink-2 shadow-card hover:bg-card/80', className)}>
+      {dark ? <Sun className="size-[18px]" aria-hidden="true" /> : <Moon className="size-[18px]" aria-hidden="true" />}
+    </Button>
   );
 }

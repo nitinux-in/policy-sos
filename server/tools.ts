@@ -118,7 +118,7 @@ function policyById(id: string): Policy | undefined {
   return portfolio.policies.find((p) => p.id.toLowerCase() === String(id).trim().toLowerCase());
 }
 
-const SOURCE = 'Simulated policy data';
+const SOURCE = 'Policy document';
 
 export function toEvidence(p: Policy, c: Clause): EvidenceItem {
   return {
@@ -263,11 +263,11 @@ function waitingPeriodNote(c: EvidenceItem): string {
     else end.setUTCDate(end.getUTCDate() + Number(length[1]));
     const endIso = end.toISOString().slice(0, 10);
     return endIso <= DEMO_TODAY
-      ? `${c.title} (${c.section}): the ${length[1]}-${length[2].replace(/s$/, '')} wait counted from ${fmtDay(start)} ended on ${fmtDay(endIso)}, before the demo date of ${fmtDay(DEMO_TODAY)}. The insurer still confirms this at claim time.`
-      : `${c.title} (${c.section}): the ${length[1]}-${length[2].replace(/s$/, '')} wait counted from ${fmtDay(start)} ends on ${fmtDay(endIso)} — not yet completed at the demo date.`;
+      ? `${c.title} (${c.section}): the ${length[1]}-${length[2].replace(/s$/, '')} wait counted from ${fmtDay(start)} ended on ${fmtDay(endIso)}, before today (${fmtDay(DEMO_TODAY)}). The insurer still confirms this at claim time.`
+      : `${c.title} (${c.section}): the ${length[1]}-${length[2].replace(/s$/, '')} wait counted from ${fmtDay(start)} ends on ${fmtDay(endIso)} — not yet completed as of ${fmtDay(DEMO_TODAY)}.`;
   }
-  if (length) return `${c.title} (${c.section}): ${length[1]}-${length[2].replace(/s$/, '')} waiting period. The sample data doesn’t record when this cover started, so completion can’t be checked.`;
-  return `${c.title} (${c.section}): a waiting period applies. Completion can’t be checked from the sample data.`;
+  if (length) return `${c.title} (${c.section}): ${length[1]}-${length[2].replace(/s$/, '')} waiting period. The policy data doesn’t record when this cover started, so completion can’t be checked.`;
+  return `${c.title} (${c.section}): a waiting period applies. Completion can’t be checked from the policy data.`;
 }
 
 const PERSON_WORDS = ['father', 'mother', 'parents', 'spouse', 'wife', 'husband', 'son', 'daughter', 'child', 'self', 'me'];
@@ -405,7 +405,7 @@ export function comparePolicies(args: z.infer<typeof schemas.comparePolicies>): 
       }),
     };
   });
-  const notes = ['Values come only from simulated policy data. "Not specified" means the data does not say — not that the benefit is absent.'];
+  const notes = ['Values come only from your policy documents. "Not specified" means the data does not say — not that the benefit is absent.'];
   if (!sameCategory) notes.push('These policies are in different categories, so they cover different risks and are not substitutes.');
   return {
     criteria: rows.map((r) => r.criterion),

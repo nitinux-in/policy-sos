@@ -69,11 +69,11 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
                 <button type="button" onClick={() => onOpenPolicy(p)} data-policy-id={p.id} className="focus-ring-inset flex min-w-0 flex-1 items-center gap-3 rounded-card px-3 py-3 text-left">
                   <CategoryIcon c={p.category} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-semibold" translate="no">{p.name}</span>
-                    <span className="block truncate text-[12px] text-muted-foreground"><span className="hidden @xl:inline">{p.provider} · </span>Renews {fmtDate(p.renewalDate)}</span>
+                    <span className="block truncate text-[14px] max-md:text-[13px] font-semibold" translate="no">{p.name}</span>
+                    <span className="block truncate text-[12px] max-md:text-[11.5px] text-muted-foreground"><span className="hidden @xl:inline">{p.provider} · </span>Renews {fmtDate(p.renewalDate)}</span>
                   </span>
                   <span className="text-right">
-                    <span className="tnum block text-[14px] font-semibold">{fmtMoney(p, p.sumInsured, true)}</span>
+                    <span className="tnum block text-[14px] max-md:text-[13px] font-semibold">{fmtMoney(p, p.sumInsured, true)}</span>
                     <span className="tnum hidden text-[11px] text-muted-foreground @xl:block">in {daysUntil(p.renewalDate)} days</span>
                   </span>
                 </button>
@@ -104,11 +104,11 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
                   <li key={c.id} className="flex items-start gap-3 py-2.5">
                     <span className={`grid size-10 shrink-0 place-items-center rounded-full ${TONE.ok}`} aria-hidden="true"><Receipt size={17} /></span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[14px] font-semibold">{c.title}</span>
-                      <span className="block text-[12px] text-muted-foreground">{p?.name} · {fmtDate(c.date)}</span>
+                      <span className="block text-[14px] max-md:text-[13px] font-semibold">{c.title}</span>
+                      <span className="block text-[12px] max-md:text-[11.5px] text-muted-foreground">{p?.name} · {fmtDate(c.date)}</span>
                     </span>
                     <span className="text-right">
-                      <span className="tnum block text-[14px] font-semibold">{p ? fmtMoney(p, c.amountSettled ?? c.amountClaimed) : ''}</span>
+                      <span className="tnum block text-[14px] max-md:text-[13px] font-semibold">{p ? fmtMoney(p, c.amountSettled ?? c.amountClaimed) : ''}</span>
                       <Pill tone={s.tone} className="mt-1">{s.label}</Pill>
                     </span>
                   </li>
@@ -123,8 +123,8 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
                 <li key={d.id} className="flex items-center gap-3 py-2.5">
                   <DocIcon trusted={d.trusted} />
                   <span className="min-w-0">
-                    <span className="block truncate text-[14px] font-semibold">{d.title}</span>
-                    <span className="block text-[12px] text-muted-foreground">{d.trusted ? 'Policy document' : 'Needs review'} · {fmtDate(d.addedOn)}</span>
+                    <span className="block truncate text-[14px] max-md:text-[13px] font-semibold">{d.title}</span>
+                    <span className="block text-[12px] max-md:text-[11.5px] text-muted-foreground">{d.trusted ? 'Policy document' : 'Needs review'} · {fmtDate(d.addedOn)}</span>
                   </span>
                 </li>
               ))}
@@ -148,17 +148,17 @@ function AskCard({ firstName, onAsk, className = '' }: { firstName: string; onAs
       className={`relative min-w-0 overflow-hidden rounded-hero bg-gradient-to-br from-sky-from to-sky-to p-4 shadow-card @4xl:px-6 @4xl:py-5 ${className}`}
     >
       <div className="pointer-events-none absolute right-6 top-1/2 hidden -translate-y-1/2 @4xl:block" aria-hidden="true">
-        <span className="animate-float block" style={{ animationIterationCount: 2 }}><Mascot className="w-[140px] @6xl:w-[156px]" /></span>
+        <span className="animate-float block" style={{ animationIterationCount: 2 }}><Mascot className="w-[140px] -scale-x-100 @6xl:w-[156px]" /></span>
       </div>
       <div className="relative @4xl:max-w-[74%]">
         <div className="flex items-center gap-3 @4xl:block">
           <MascotAvatar className="size-10 ring-2 ring-card @4xl:hidden" />
           <div className="min-w-0">
-            <h1 id="ask-card" tabIndex={-1} className="text-[16px] font-semibold leading-tight outline-none @4xl:text-[22px] @4xl:font-medium">
+            <h1 id="ask-card" tabIndex={-1} className="text-[16px] max-md:text-[15px] font-semibold leading-tight outline-none @4xl:text-[22px] @4xl:font-medium">
               <span className="@4xl:hidden">Hi {firstName}, what can I check?</span>
               <span className="hidden @4xl:inline">Hi {firstName}, what would you like to check?</span>
             </h1>
-            <p className="mt-0.5 text-[13px] leading-snug text-ink-2 @4xl:mt-1 @4xl:text-[13px]">
+            <p className="mt-0.5 text-[13px] max-md:text-[12px] leading-snug text-ink-2 @4xl:mt-1 @4xl:text-[13px]">
               <span className="@4xl:hidden">Answers quote your policy wording</span>
               <span className="hidden @4xl:inline">Ask about a situation or a policy — answers cite the policy wording.</span>
             </p>
@@ -199,7 +199,7 @@ function AskCard({ firstName, onAsk, className = '' }: { firstName: string; onAs
               aria-label={`${s.title}: ${s.q}`}
               whileTap={{ scale: 0.95 }}
               transition={SPRING}
-              className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full bg-card px-3.5 text-[13px] font-medium shadow-card transition-colors hover:bg-card @4xl:h-8 @4xl:px-3 @4xl:text-[12.5px] @4xl:bg-card/80 @4xl:shadow-none"
+              className="inline-flex h-9 max-md:h-8 items-center gap-1.5 whitespace-nowrap rounded-full bg-card px-3.5 max-md:px-3 text-[13px] max-md:text-[12px] font-medium shadow-card transition-colors hover:bg-card @4xl:h-8 @4xl:px-3 @4xl:text-[12.5px] @4xl:bg-card/80 @4xl:shadow-none"
             >
               <s.icon className="size-[15px] text-link" aria-hidden="true" />
               {s.hint}

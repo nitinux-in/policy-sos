@@ -92,8 +92,8 @@ export function Panel({ title, action, children, className = '', bodyClassName =
   const id = useId();
   return (
     <Card role="region" aria-labelledby={id} className={cn(surface, 'min-w-0 gap-0 py-0', className)}>
-      <div className="flex min-h-14 items-center justify-between gap-3 px-5 pt-2">
-        <h2 id={id} className="text-[15px] font-semibold tracking-tight">{title}</h2>
+      <div className="flex min-h-14 items-center justify-between gap-3 px-5 pt-2 max-md:min-h-12 max-md:px-4">
+        <h2 id={id} className="text-[15px] font-semibold tracking-tight max-md:text-[14px]">{title}</h2>
         {action}
       </div>
       <div className={cn('@container min-w-0 flex-1 pb-2', bodyClassName)}>{children}</div>
@@ -105,14 +105,14 @@ export function Panel({ title, action, children, className = '', bodyClassName =
 export function Stat({ label, value, sub, icon: Icon, badge }: { label: string; value: ReactNode; sub?: ReactNode; icon: LucideIcon; badge?: ReactNode }) {
   return (
     <m.div variants={rise} className="flex min-w-0">
-    <Card className={cn(surface, 'min-w-0 flex-1 gap-0 p-4')}>
+    <Card className={cn(surface, 'min-w-0 flex-1 gap-0 p-4 max-md:p-3.5')}>
       <div className="flex items-start justify-between gap-2">
-        <span className="grid size-9 place-items-center rounded-full bg-accent text-link" aria-hidden="true"><Icon size={17} /></span>
+        <span className="grid size-9 place-items-center rounded-full bg-accent text-link max-md:size-8" aria-hidden="true"><Icon size={16} /></span>
         {badge}
       </div>
-      <p className="mt-3 text-[12px] font-medium text-muted-foreground">{label}</p>
-      <p className="tnum mt-0.5 text-[22px] font-semibold leading-tight tracking-tight @4xl:text-[26px]">{value}</p>
-      {sub && <p className="mt-1 text-[12px] leading-snug text-muted-foreground">{sub}</p>}
+      <p className="mt-3 text-[12px] font-medium text-muted-foreground max-md:mt-2.5 max-md:text-[11.5px]">{label}</p>
+      <p className="tnum mt-0.5 text-[22px] font-semibold leading-tight tracking-tight max-md:text-[19px] @4xl:text-[26px]">{value}</p>
+      {sub && <p className="mt-1 text-[12px] leading-snug text-muted-foreground max-md:text-[11.5px]">{sub}</p>}
     </Card>
     </m.div>
   );

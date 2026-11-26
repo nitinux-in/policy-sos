@@ -2,7 +2,7 @@
 // scenarios (see docs/answer-scenarios.md) and produces the same answer on every run. All of them are
 // regression-tested in scripts/engine-cases.json.
 
-import { Baby, BedDouble, FileCheck2, Hospital, OctagonAlert, Pill, ShieldCheck, UserRound, type LucideIcon } from 'lucide-react';
+import { Baby, BedDouble, FileCheck2, Hospital, Receipt, ShieldCheck, UserRound, type LucideIcon } from 'lucide-react';
 
 export const PROMPTS = {
   emergency: 'My father is admitted in hospital for a heart problem',
@@ -19,10 +19,10 @@ export const PROMPTS = {
 
 /** Assistant landing tiles */
 export const FEATURED: { title: string; hint: string; icon: LucideIcon; q: string; urgent?: boolean }[] = [
-  { title: 'In hospital', hint: 'Dad’s admitted for his heart', icon: OctagonAlert, q: PROMPTS.emergency, urgent: true },
-  { title: 'Pay, then claim', hint: 'Diabetes treatment paid in cash', icon: Pill, q: PROMPTS.preExisting },
+  { title: 'In hospital', hint: 'Dad’s in hospital', icon: Hospital, q: PROMPTS.emergency, urgent: true },
+  { title: 'Pay, then claim', hint: 'Claim a cash bill', icon: Receipt, q: PROMPTS.preExisting },
   { title: 'Check cover', hint: 'Maternity cover', icon: Baby, q: PROMPTS.maternity },
-  { title: 'Term life', hint: 'What my family receives', icon: ShieldCheck, q: PROMPTS.termNominee },
+  { title: 'Term life', hint: 'My family’s payout', icon: ShieldCheck, q: PROMPTS.termNominee },
 ];
 
 /** Claims screen shortcuts */

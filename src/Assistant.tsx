@@ -439,7 +439,7 @@ export function AssistantView({
       hidden={!active}
       className="grid h-[calc(100dvh-6.5rem)] min-h-[520px] gap-4 pt-1 outline-none xl:grid-cols-[minmax(0,1fr)_340px]"
     >
-      <div className={`${surface} flex min-h-0 flex-col overflow-hidden bg-gradient-to-b from-sky-from/70 via-card to-card dark:from-sky-from/40`}>
+      <div className={`${surface} flex min-h-0 flex-col overflow-hidden bg-gradient-to-b from-sky-from via-sky-to to-card`}>
         <header className="flex h-14 shrink-0 items-center gap-2 bg-transparent px-5">
           <MascotAvatar />
           <h1 id="companion-title" tabIndex={-1} className="flex-1 text-[15px] font-semibold outline-none">Ditto Assistant</h1>
@@ -699,7 +699,7 @@ function AnswerView({ a, onAsk, busy, showUntrusted, detailsInline, tinted }: { 
           </m.div>
         )}
 
-        <m.div variants={card} className={`overflow-hidden rounded-card rounded-tl-tail ${tinted ? 'bg-background' : 'bg-card shadow-card'}`}>
+        <m.div variants={card} className={`overflow-hidden rounded-card rounded-tl-tail ${tinted ? 'bg-card/90 shadow-card' : 'bg-card shadow-card'}`}>
           {/* The direct answer first: verdict, one-line headline, then a few scannable points */}
           {(a.headline || keyPoints.length > 0 || text) && (
           <div className="px-4 pb-3 pt-3.5">

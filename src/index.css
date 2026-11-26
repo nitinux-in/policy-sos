@@ -126,6 +126,9 @@ h1, h2, h3, h4 {
 }
 p { text-wrap: pretty; }
 
+/* Money and counts: Inter's open digits, tabular, a touch tighter — figures that read as Ditto's, not default */
+.figure { font-feature-settings: 'tnum' 1, 'ss01' 1, 'cv11' 1; letter-spacing: -0.03em; font-weight: 600; line-height: 1.1; }
+
 /* Type: tracking depends on size — tight on large figures, neutral body, slightly open on small labels */
 :where(.text-\[26px\], .text-\[28px\], .text-\[30px\], .text-\[34px\], .text-\[20px\], .text-\[22px\]) { letter-spacing: -0.022em; line-height: 1.1; }
 :where(.text-\[11px\], .text-\[12px\]) { letter-spacing: 0.01em; }

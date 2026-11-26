@@ -17,6 +17,14 @@ export const PROMPTS = {
   rejected: 'My health claim was rejected. What can I do?',
 } as const;
 
+/** Home: quick questions under the search bar — the everyday ones people ask most */
+export const HOME_CHIPS: { label: string; q: string }[] = [
+  { label: 'File a claim', q: 'How do I file a claim?' },
+  { label: 'Cashless hospitals', q: 'Which hospitals are cashless?' },
+  { label: 'Room rent limit', q: PROMPTS.roomRent },
+  { label: 'What’s not covered', q: 'What is not covered in my policy?' },
+];
+
 /** Assistant landing tiles */
 export const FEATURED: { title: string; hint: string; icon: LucideIcon; q: string; urgent?: boolean }[] = [
   { title: 'In hospital', hint: 'Dad’s in hospital', icon: Hospital, q: PROMPTS.emergency, urgent: true },

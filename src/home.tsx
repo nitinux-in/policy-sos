@@ -1,15 +1,14 @@
-// Home: the version 05 dashboard, restored as it was (sky Ask card, summary cards, policies, renewals,
-// claims, documents).
+// Home: the version 05 dashboard (sky Ask card, figures, policies, claims, documents), made quieter:
+// icons only where they mean something, one strip of figures, flat lists, plain-text status.
 
 import { useState } from 'react';
-import { ArrowUp, ArrowUpRight, CalendarClock, ChevronRight, FileText, HeartPulse, Receipt, Search, ShieldCheck, TriangleAlert, Users } from 'lucide-react';
+import { ArrowUp, ArrowUpRight, CalendarClock, ChevronRight, Search, TriangleAlert } from 'lucide-react';
 import { m } from 'motion/react';
 import type { Policy, PortfolioData } from '../shared/types';
-import { DEMO_TODAY } from '../shared/demo';
 import { coverageMatrix } from '../shared/insights';
 import { daysUntil, fmtDate, fmtMoney } from './format';
-import { FEATURED } from './prompts';
-import { CategoryIcon, Mascot, MascotAvatar, Panel, Pill, SEND_BUTTON, Stat, surface, TONE } from './ui';
+import { HOME_CHIPS } from './prompts';
+import { Mascot, MascotAvatar, Panel, SEND_BUTTON, surface } from './ui';
 import type { Tab } from './App';
 import { explainPrompt } from './screens';
 import { Button } from '@/components/ui/button';
@@ -17,11 +16,15 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { EASE, SPRING, rise, stagger } from './motion';
 
+// Status as plain text; colour only where it needs attention
 const CLAIM_STATUS = {
-  settled: { label: 'Settled', tone: 'ok' },
-  in_review: { label: 'In review', tone: 'warn' },
-  closed: { label: 'Closed', tone: 'neutral' },
+  settled: { label: 'Settled', cls: 'text-ok' },
+  in_review: { label: 'In review', cls: 'text-warn' },
+  closed: { label: 'Closed', cls: 'text-muted-foreground' },
 } as const;
+const CATEGORY_LABEL = { health: 'Health', life: 'Term life' } as Record<string, string>;
+/** Lists sit flatter than the Ask card and figures: a hairline instead of a shadow */
+const flat = 'border border-line/80 shadow-none dark:border-line';
 
 const byRenewal = (a: Policy, b: Policy) => a.renewalDate.localeCompare(b.renewalDate);
 const covers = (p: Policy) => {
@@ -54,26 +57,37 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
         <NextRenewal policy={renewals[0]} onOpen={onOpenPolicy} className="hidden @4xl:col-span-4 @4xl:flex" />
       </m.div>
 
-      <m.section variants={stagger(0.06)} aria-label="Summary" className="grid grid-cols-2 gap-3 @4xl:grid-cols-4 @4xl:gap-4">
-        <Stat icon={HeartPulse} label="Health cover" value={money(health.reduce((s, p) => s + p.sumInsured, 0))} badge={<Pill tone="ok">{health.length} plans</Pill>} sub={health.map((p) => money(p.sumInsured)).join(' + ')} />
-        <Stat icon={ShieldCheck} label="Term life cover" value={life.length ? money(life.reduce((s, p) => s + p.sumInsured, 0)) : '—'} badge={life.length ? <Pill tone="ok">Active</Pill> : undefined} sub={life[0] ? covers(life[0]) : undefined} />
-        <Stat icon={Users} label="People covered" value={String(people.length)} sub={people.map((x) => x.name.split(' ')[0]).join(', ')} />
-        <Stat icon={Receipt} label="Claims settled" value={`${settled.length} of ${data.claims.length}`} sub={settled.length ? `${money(settled.reduce((s, c) => s + (c.amountSettled ?? 0), 0))} paid out` : undefined} />
+      {/* One strip of figures with hairline dividers (2 × 2 on phones) */}
+      <m.section variants={rise} aria-label="Summary" className={`${surface} grid grid-cols-2 overflow-hidden @4xl:grid-cols-4`}>
+        {[
+          { label: 'Health cover', value: money(health.reduce((s, p) => s + p.sumInsured, 0)), sub: `${health.length} plans · ${health.map((p) => money(p.sumInsured)).join(' + ')}` },
+          { label: 'Term life cover', value: life.length ? money(life.reduce((s, p) => s + p.sumInsured, 0)) : '—', sub: life[0] ? covers(life[0]) : 'No term plan' },
+          { label: 'People covered', value: String(people.length), sub: people.map((x) => x.name.split(' ')[0]).join(', ') },
+          { label: 'Claims settled', value: `${settled.length} of ${data.claims.length}`, sub: settled.length ? `${money(settled.reduce((s, c) => s + (c.amountSettled ?? 0), 0))} paid out` : 'None yet' },
+        ].map((f, i) => (
+          <div
+            key={f.label}
+            className={`min-w-0 border-line/70 px-4 py-3.5 @4xl:px-5 @4xl:py-4 ${i === 0 ? 'border-r @max-4xl:border-b' : ''} ${i === 1 ? '@max-4xl:border-b @4xl:border-r' : ''} ${i === 2 ? 'border-r' : ''}`}
+          >
+            <p className="text-[12px] text-muted-foreground max-md:text-[11.5px]">{f.label}</p>
+            <p className="figure mt-1 text-[24px] max-md:text-[20px]">{f.value}</p>
+            <p className="mt-0.5 truncate text-[12px] text-muted-foreground max-md:text-[11.5px]">{f.sub}</p>
+          </div>
+        ))}
       </m.section>
 
       <m.div variants={rise} className="grid items-start gap-4 @4xl:grid-cols-12">
-        <Panel title="Your policies" action={viewAll('View all', () => onNavigate('policies'))} className="@4xl:col-span-7">
+        <Panel title="Your policies" action={viewAll('View all', () => onNavigate('policies'))} className={`${flat} @4xl:col-span-7`}>
           <ul className="px-2">
             {renewals.map((p) => (
               <li key={p.id} className="group flex items-center gap-1 rounded-card transition-colors hover:bg-muted/60 active:bg-muted/80">
                 <button type="button" onClick={() => onOpenPolicy(p)} data-policy-id={p.id} className="focus-ring-inset flex min-w-0 flex-1 items-center gap-3 rounded-card px-3 py-3 text-left">
-                  <CategoryIcon c={p.category} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[14px] max-md:text-[13px] font-semibold" translate="no">{p.name}</span>
-                    <span className="block truncate text-[12px] max-md:text-[11.5px] text-muted-foreground"><span className="hidden @xl:inline">{p.provider} · </span>Renews {fmtDate(p.renewalDate)}</span>
+                    <span className="block truncate text-[12px] max-md:text-[11.5px] text-muted-foreground">{CATEGORY_LABEL[p.category]}<span className="hidden @xl:inline"> · {p.provider}</span> · Renews {fmtDate(p.renewalDate)}</span>
                   </span>
                   <span className="text-right">
-                    <span className="tnum block text-[14px] max-md:text-[13px] font-semibold">{fmtMoney(p, p.sumInsured, true)}</span>
+                    <span className="figure block text-[15px] max-md:text-[14px]">{fmtMoney(p, p.sumInsured, true)}</span>
                     <span className="tnum hidden text-[11px] text-muted-foreground @xl:block">in {daysUntil(p.renewalDate)} days</span>
                   </span>
                 </button>
@@ -94,7 +108,7 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
         </Panel>
 
         <div className="grid gap-4 @4xl:col-span-5">
-          <Panel title="Recent claims" action={viewAll('View all', () => onNavigate('claims'))}>
+          <Panel title="Recent claims" action={viewAll('View all', () => onNavigate('claims'))} className={flat}>
             {data.claims.length === 0 && <p className="px-5 pb-4 text-[14px] text-muted-foreground">No past claims.</p>}
             <ul className="px-5">
               {data.claims.slice(0, 3).map((c) => {
@@ -102,14 +116,13 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
                 const s = CLAIM_STATUS[c.status];
                 return (
                   <li key={c.id} className="flex items-start gap-3 py-2.5">
-                    <span className={`grid size-10 shrink-0 place-items-center rounded-full ${TONE.ok}`} aria-hidden="true"><Receipt size={17} /></span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-[14px] max-md:text-[13px] font-semibold">{c.title}</span>
                       <span className="block text-[12px] max-md:text-[11.5px] text-muted-foreground">{p?.name} · {fmtDate(c.date)}</span>
                     </span>
                     <span className="text-right">
-                      <span className="tnum block text-[14px] max-md:text-[13px] font-semibold">{p ? fmtMoney(p, c.amountSettled ?? c.amountClaimed) : ''}</span>
-                      <Pill tone={s.tone} className="mt-1">{s.label}</Pill>
+                      <span className="figure block text-[15px] max-md:text-[14px]">{p ? fmtMoney(p, c.amountSettled ?? c.amountClaimed) : ''}</span>
+                      <span className={`mt-0.5 block text-[12px] font-medium ${s.cls}`}>{s.label}</span>
                     </span>
                   </li>
                 );
@@ -117,14 +130,20 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
             </ul>
           </Panel>
 
-          <Panel title="Documents" action={viewAll('View all', () => onNavigate('documents'))}>
+          <Panel title="Documents" action={viewAll('View all', () => onNavigate('documents'))} className={flat}>
             <ul className="px-5">
               {data.documents.map((d) => (
                 <li key={d.id} className="flex items-center gap-3 py-2.5">
-                  <DocIcon trusted={d.trusted} />
                   <span className="min-w-0">
                     <span className="block truncate text-[14px] max-md:text-[13px] font-semibold">{d.title}</span>
-                    <span className="block text-[12px] max-md:text-[11.5px] text-muted-foreground">{d.trusted ? 'Policy document' : 'Needs review'} · {fmtDate(d.addedOn)}</span>
+                    {d.trusted ? (
+                      <span className="block text-[12px] max-md:text-[11.5px] text-muted-foreground">Policy document · {fmtDate(d.addedOn)}</span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-[12px] max-md:text-[11.5px] text-muted-foreground">
+                        <TriangleAlert className="size-3.5 text-warn" fill="currentColor" fillOpacity={0.18} aria-hidden="true" />
+                        <span className="font-medium text-warn">Needs review</span> · {fmtDate(d.addedOn)}
+                      </span>
+                    )}
                   </span>
                 </li>
               ))}
@@ -191,18 +210,17 @@ function AskCard({ firstName, onAsk, className = '' }: { firstName: string; onAs
         className="no-scrollbar fade-x relative -mx-4 mt-3 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 py-1 @4xl:-mx-1 @4xl:mt-3 @4xl:max-w-[74%] @4xl:px-1"
         aria-label="Quick questions"
       >
-        {FEATURED.map((s) => (
+        {HOME_CHIPS.map((s) => (
           <li key={s.q} className="shrink-0 snap-start">
             <m.button
               type="button"
               onClick={() => onAsk(s.q)}
-              aria-label={`${s.title}: ${s.q}`}
+              aria-label={`${s.label}: ${s.q}`}
               whileTap={{ scale: 0.95 }}
               transition={SPRING}
               className="inline-flex h-9 max-md:h-8 items-center gap-1.5 whitespace-nowrap rounded-full bg-card px-3.5 max-md:px-3 text-[13px] max-md:text-[12px] font-medium shadow-card transition-colors hover:bg-card @4xl:h-8 @4xl:px-3 @4xl:text-[12.5px] @4xl:bg-card/80 @4xl:shadow-none"
             >
-              <s.icon className="size-[15px] text-link" aria-hidden="true" />
-              {s.hint}
+              {s.label}
             </m.button>
           </li>
         ))}
@@ -218,8 +236,8 @@ function NextRenewal({ policy: p, onOpen, className = '' }: { policy: Policy; on
   return (
     <Card className={`${surface} min-w-0 flex-col justify-between gap-3 px-5 py-5 ${className}`}>
       <div>
-        <p className="flex items-center gap-2 text-[12px] font-medium text-muted-foreground"><CalendarClock className="size-3.5" aria-hidden="true" /> Next renewal</p>
-        <p className="mt-2 text-[22px] font-medium leading-none">{fmtDate(p.renewalDate)}</p>
+        <p className="flex items-center gap-2 text-[12px] font-medium text-muted-foreground"><CalendarClock className="size-3.5" fill="currentColor" fillOpacity={0.15} aria-hidden="true" /> Next renewal</p>
+        <p className="figure mt-2 text-[22px]">{fmtDate(p.renewalDate)}</p>
         <p className="mt-1.5 truncate text-[13px] text-ink-2" translate="no">{p.name} · {p.provider}</p>
       </div>
       <div>
@@ -230,13 +248,5 @@ function NextRenewal({ policy: p, onOpen, className = '' }: { policy: Policy; on
         <Button type="button" variant="outline" size="sm" onClick={() => onOpen(p)} data-policy-id={p.id} className="mt-3 h-9 w-full bg-card">View policy</Button>
       </div>
     </Card>
-  );
-}
-
-function DocIcon({ trusted }: { trusted: boolean }) {
-  return (
-    <span className={`grid size-10 shrink-0 place-items-center rounded-full ${trusted ? TONE.neutral : TONE.warn}`} aria-hidden="true">
-      {trusted ? <FileText size={17} /> : <TriangleAlert size={17} />}
-    </span>
   );
 }

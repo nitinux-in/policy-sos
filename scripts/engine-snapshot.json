@@ -5304,5 +5304,90 @@
       "How much health cover do I have left?",
       "How much will I pay if my hospital bill is ₹3 lakh?"
     ]
+  },
+  "How do I file a claim?": {
+    "route": "intent:Health: reimbursement how > searchPolicies > retrievePolicyEvidence > retrievePolicyEvidence > generateActionPlan",
+    "headline": "Pay the hospital, then submit the claim form, discharge summary, bills and reports within 30 days of discharge.",
+    "verdict": "info",
+    "keyPoints": [
+      "Family Floater Shield: send them to Helpline 1800-000-0101, and follow-up bills within 15 days of finishing treatment.",
+      "Employer Group Health: tell the insurer’s claims desk (TPA) through the HR portal, with the patient’s ID and your employee ID.",
+      "Late? Submit anyway with a written reason. Justified delays are accepted."
+    ],
+    "details": [
+      "reimbursement",
+      "reimbursement-employer"
+    ],
+    "coverage": [],
+    "plan": [
+      "Gather your documents",
+      "Submit the claim within 30 days of discharge",
+      "Send follow-up bills separately"
+    ],
+    "evidence": [
+      "HLT-01-8.2",
+      "HLT-01-8.1",
+      "HLT-01-3.3",
+      "HLT-02-6.1",
+      "HLT-02-6.2",
+      "HLT-02-2.6"
+    ],
+    "untrustedNotice": true,
+    "suggestions": [
+      "My health claim was rejected. What can I do?",
+      "Which hospitals in Pune are cashless?"
+    ]
+  },
+  "Which hospitals are cashless?": {
+    "route": "intent:Health: network > searchPolicies > retrievePolicyEvidence > retrievePolicyEvidence",
+    "headline": "Cashless in Pune: Riverside, Greenfield, Lotus Heart Institute and Sahyadri.",
+    "verdict": "info",
+    "keyPoints": [
+      "Family Floater Shield: Riverside and Greenfield.",
+      "Employer Group Health: Lotus Heart Institute, Riverside and Sahyadri.",
+      "Any other hospital: pay and claim reimbursement within 30 days of discharge."
+    ],
+    "details": [
+      "cashless"
+    ],
+    "coverage": [],
+    "evidence": [
+      "HLT-01-3.3",
+      "HLT-02-2.6"
+    ],
+    "untrustedNotice": true,
+    "suggestions": [
+      "Can I go to Riverside Multispeciality for cashless?",
+      "I have a planned surgery next month. How do I get cashless treatment?"
+    ]
+  },
+  "What is not covered in my policy?": {
+    "route": "intent:Explain policy details > searchPolicies > retrievePolicyEvidence > retrievePolicyEvidence",
+    "headline": "Exclusions in Family Floater Shield and Secure Term Plus.",
+    "verdict": "info",
+    "keyPoints": [
+      "Family Floater Shield — Dental exclusion (Section 6.2): Dental treatment is excluded unless it requires hospitalisation due to an accidental injury.",
+      "Family Floater Shield — Cosmetic and OPD (Section 6.4): Cosmetic procedures, outpatient consultations and spectacles are excluded.",
+      "Family Floater Shield — Non-medical items (Section 6.5): Non-medical items such as admission kits, toiletries, gloves, masks and attendant charges are not payable.",
+      "Family Floater Shield — Self-inflicted injury and substance abuse (Section 6.6): Treatment for intentional self-inflicted injury, alcohol or drug abuse, and injuries from hazardous or adventure sports is excluded."
+    ],
+    "details": [
+      "all-items"
+    ],
+    "coverage": [],
+    "evidence": [
+      "HLT-01-3.1",
+      "HLT-01-6.2",
+      "HLT-01-5.1",
+      "HLT-01-4.1",
+      "HLT-01-3.3",
+      "HLT-01-8.1",
+      "HLT-01-3.2",
+      "HLT-01-6.4"
+    ],
+    "suggestions": [
+      "What happens to my family if I die?",
+      "Can I change the nominee on my term policy?"
+    ]
   }
 }

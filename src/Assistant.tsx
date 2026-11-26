@@ -742,9 +742,9 @@ function AnswerView({ a, onAsk, busy, showUntrusted, detailsInline, tinted }: { 
                 aria-expanded={open}
                 aria-controls={open ? detailsId : undefined}
                 onClick={() => setOpen((o) => !o)}
-                className="-ml-2 inline-flex min-h-9 items-center gap-2 rounded-full px-2 text-[13px] font-medium text-ink-2 transition-colors hover:bg-accent/50"
+                className="-ml-2 inline-flex min-h-9 items-center gap-2 whitespace-nowrap rounded-full px-2 text-[13px] font-medium text-ink-2 transition-colors hover:bg-accent/50"
               >
-                {a.confidence && lvl && (
+                {a.confidence && lvl && !open && (
                   <>
                     <span className="flex gap-0.5" aria-hidden="true">
                       {[0, 1, 2].map((i) => <span key={i} className={`h-1.5 w-3 rounded-full ${i < lvl.filled ? lvl.bar : 'bg-muted'}`} />)}
@@ -768,6 +768,8 @@ function AnswerView({ a, onAsk, busy, showUntrusted, detailsInline, tinted }: { 
                 transition={{ duration: 0.3, ease: EASE }}
                 className="overflow-hidden"
               >
+                {/* Sections added after the answer has appeared start their own reveal (otherwise they'd stay hidden) */}
+                <m.div initial="hidden" animate="show" variants={stagger(0.04)}>
               {a.confidence && <ConfidenceStrip c={a.confidence} evidence={a.evidence} inline={detailsInline} />}
 
               {coverage.length > 0 && (
@@ -808,6 +810,7 @@ function AnswerView({ a, onAsk, busy, showUntrusted, detailsInline, tinted }: { 
               {a.plan && <PlanView plan={a.plan} />}
 
               {folded.length > 0 && <m.div variants={riseSm}><FoldedSections sections={folded} /></m.div>}
+                </m.div>
               </m.div>
             )}
           </AnimatePresence>

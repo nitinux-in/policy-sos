@@ -141,6 +141,31 @@ h1, h2, h3 {
 @utility animate-drawer { animation: slide-in-right 0.22s var(--ease-out-soft); }
 @utility animate-rise { animation: fade-up 0.2s ease-out both; }
 @utility animate-fade { animation: fade 0.18s ease-out both; }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@utility animate-float { animation: float 4.5s ease-in-out infinite; }
+
+/* While the assistant works: a soft pulse around its avatar and a light sweep across the status text */
+@keyframes ring-out { from { transform: scale(0.92); opacity: 0.55; } to { transform: scale(1.45); opacity: 0; } }
+.trace-ring { position: absolute; inset: -2px; border-radius: 9999px; border: 2px solid var(--color-primary); opacity: 0; animation: ring-out 1.5s var(--ease-out-soft) infinite; pointer-events: none; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.shimmer-text {
+  background: linear-gradient(90deg, var(--color-ink-3) 0%, var(--color-ink-3) 35%, var(--color-ink) 50%, var(--color-ink-3) 65%, var(--color-ink-3) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 1.8s linear infinite;
+}
+
+/* Checked plan steps: the line draws across the text */
+.strike {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: 0 58%;
+  background-size: 0% 1.5px;
+  transition: background-size 0.35s var(--ease-out-soft), color 0.3s;
+}
+.strike.is-on { background-size: 100% 1.5px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

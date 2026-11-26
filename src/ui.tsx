@@ -8,6 +8,8 @@ import { categoryMeta, policyStatus } from './format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { m } from 'motion/react';
+import { rise } from './motion';
 
 // ---------- brand ----------
 
@@ -97,7 +99,8 @@ export function Panel({ title, action, children, className = '', bodyClassName =
 /** A compact summary figure: icon, optional status, label, value. */
 export function Stat({ label, value, sub, icon: Icon, badge }: { label: string; value: ReactNode; sub?: ReactNode; icon: LucideIcon; badge?: ReactNode }) {
   return (
-    <Card className={cn(surface, 'min-w-0 gap-0 p-4')}>
+    <m.div variants={rise} className="flex min-w-0">
+    <Card className={cn(surface, 'min-w-0 flex-1 gap-0 p-4')}>
       <div className="flex items-start justify-between gap-2">
         <span className="grid size-9 place-items-center rounded-full bg-accent text-link" aria-hidden="true"><Icon size={17} /></span>
         {badge}
@@ -106,6 +109,7 @@ export function Stat({ label, value, sub, icon: Icon, badge }: { label: string; 
       <p className="tnum mt-0.5 text-[22px] font-semibold leading-tight tracking-tight @4xl:text-[26px]">{value}</p>
       {sub && <p className="mt-1 text-[12px] leading-snug text-muted-foreground">{sub}</p>}
     </Card>
+    </m.div>
   );
 }
 

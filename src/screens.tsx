@@ -13,6 +13,8 @@ import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { m } from 'motion/react';
+import { EASE, SPRING, rise, stagger } from './motion';
 
 const byRenewal = (a: Policy, b: Policy) => a.renewalDate.localeCompare(b.renewalDate);
 const covers = (p: Policy) => {
@@ -48,25 +50,25 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
   const first = data.user.name.split(' ')[0];
 
   return (
-    <div className="animate-rise space-y-4 pt-2 @4xl:pt-4">
-      <header>
+    <m.div initial="hidden" animate="show" variants={stagger(0.08)} className="space-y-4 pt-2 @4xl:pt-4">
+      <m.header variants={rise}>
         <p className="text-[13px] text-muted-foreground">{today}</p>
         <h1 tabIndex={-1} className="mt-0.5 text-[26px] font-medium tracking-tight outline-none @4xl:text-[34px]">Hello, {first}</h1>
-      </header>
+      </m.header>
 
-      <div className="grid gap-4 @4xl:grid-cols-12">
+      <m.div variants={rise} className="grid gap-4 @4xl:grid-cols-12">
         <AskCard onAsk={onAsk} className="@4xl:col-span-8" />
         <NextRenewal policy={renewals[0]} onOpen={onOpenPolicy} className="hidden @4xl:col-span-4 @4xl:flex" />
-      </div>
+      </m.div>
 
-      <section aria-label="Summary" className="grid grid-cols-2 gap-3 @4xl:grid-cols-4 @4xl:gap-4">
+      <m.section variants={stagger(0.06)} aria-label="Summary" className="grid grid-cols-2 gap-3 @4xl:grid-cols-4 @4xl:gap-4">
         <Stat icon={HeartPulse} label="Health cover" value={money(health.reduce((s, p) => s + p.sumInsured, 0))} badge={<Pill tone="ok">{health.length} plans</Pill>} sub={health.map((p) => money(p.sumInsured)).join(' + ')} />
         <Stat icon={ShieldCheck} label="Term life cover" value={life.length ? money(life.reduce((s, p) => s + p.sumInsured, 0)) : '—'} badge={life.length ? <Pill tone="ok">Active</Pill> : undefined} sub={life[0] ? covers(life[0]) : undefined} />
         <Stat icon={CalendarClock} label="Next renewal" value={`${daysUntil(renewals[0].renewalDate)} days`} sub={renewals[0].name} />
         <Stat icon={Receipt} label="Claims settled" value={`${settled.length} of ${data.claims.length}`} sub={settled.length ? `${money(settled.reduce((s, c) => s + (c.amountSettled ?? 0), 0))} paid out` : undefined} />
-      </section>
+      </m.section>
 
-      <div className="grid gap-4 @4xl:grid-cols-12">
+      <m.div variants={rise} className="grid gap-4 @4xl:grid-cols-12">
         <Panel title="Your policies" action={viewAll('View all', () => onNavigate('policies'))} className="@4xl:col-span-7">
           <ul className="px-2">
             {data.policies.map((p) => (
@@ -111,9 +113,9 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
             ))}
           </ul>
         </Panel>
-      </div>
+      </m.div>
 
-      <div className="grid gap-4 @4xl:grid-cols-2">
+      <m.div variants={rise} className="grid gap-4 @4xl:grid-cols-2">
         <Panel title="Recent claims" action={viewAll('Claims', () => onNavigate('claims'))}>
           {data.claims.length === 0 && <p className="px-5 pb-4 text-[14px] text-muted-foreground">No past claims.</p>}
           <ul className="px-5">
@@ -150,8 +152,8 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
             ))}
           </ul>
         </Panel>
-      </div>
-    </div>
+      </m.div>
+    </m.div>
   );
 }
 
@@ -163,7 +165,7 @@ function AskCard({ onAsk, className = '' }: { onAsk: (q?: string) => void; class
       aria-labelledby="ask-card"
       className={`relative min-w-0 overflow-hidden @4xl:rounded-3xl @4xl:bg-gradient-to-br @4xl:from-sky-from @4xl:to-sky-to @4xl:p-7 @4xl:shadow-card ${className}`}
     >
-      <Mascot className="absolute -bottom-3 right-2 hidden w-[190px] @4xl:block @6xl:w-[220px]" />
+      <Mascot className="animate-float absolute -bottom-3 right-2 hidden w-[190px] @4xl:block @6xl:w-[220px]" />
       <div className="relative @4xl:max-w-[62%]">
         <h2 id="ask-card" className="sr-only text-[24px] font-medium leading-tight tracking-tight @4xl:not-sr-only @6xl:text-[28px]">What would you like to check today?</h2>
         <p className="mt-1 hidden text-[14px] text-ink-2 @4xl:block">Ask about a situation or a policy — answers cite the policy wording.</p>
@@ -182,7 +184,7 @@ function AskCard({ onAsk, className = '' }: { onAsk: (q?: string) => void; class
             placeholder="Ask anything about your cover"
             className="h-11 min-w-0 flex-1 border-0 bg-transparent px-1 text-[15px] shadow-none placeholder:text-muted-foreground focus-visible:ring-0 md:text-[15px] dark:bg-transparent"
           />
-          <Button type="submit" size="icon" disabled={!q.trim()} aria-label="Ask" className="size-11 shrink-0 bg-ink text-white hover:bg-ink/85 disabled:bg-ink/40 dark:bg-primary dark:hover:bg-primary-strong">
+          <Button type="submit" size="icon" disabled={!q.trim()} aria-label="Ask" className="size-11 shrink-0 transition-[background-color,transform] active:scale-90 bg-ink text-white hover:bg-ink/85 disabled:bg-ink/40 dark:bg-primary dark:hover:bg-primary-strong">
             <ArrowUp className="size-5" aria-hidden="true" />
           </Button>
         </form>
@@ -191,15 +193,18 @@ function AskCard({ onAsk, className = '' }: { onAsk: (q?: string) => void; class
       <ul className="no-scrollbar relative -mx-4 mt-3 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 @4xl:mx-0 @4xl:mt-4 @4xl:max-w-[62%] @4xl:flex-wrap @4xl:overflow-visible @4xl:px-0" aria-label="Quick questions">
         {FEATURED.map((s) => (
           <li key={s.q} className="shrink-0 snap-start">
-            <button
+            <m.button
               type="button"
               onClick={() => onAsk(s.q)}
               aria-label={`${s.title}: ${s.q}`}
-              className="inline-flex h-9 items-center gap-1.5 rounded-full bg-card px-3.5 text-[13px] font-medium shadow-card transition-colors hover:bg-card/80 @4xl:bg-card/80 @4xl:shadow-none"
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.95 }}
+              transition={SPRING}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full bg-card px-3.5 text-[13px] font-medium shadow-card transition-colors hover:bg-card @4xl:bg-card/80 @4xl:shadow-none"
             >
               <s.icon className={`size-[15px] ${s.urgent ? 'text-bad' : 'text-link'}`} aria-hidden="true" />
               {s.hint}
-            </button>
+            </m.button>
           </li>
         ))}
       </ul>
@@ -221,7 +226,7 @@ function NextRenewal({ policy: p, onOpen, className = '' }: { policy: Policy; on
       <div>
         <div className="flex justify-between text-[12px] text-muted-foreground"><span>Policy year</span><span className="tnum">{left} days left</span></div>
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${done}% of the policy year has passed`}>
-          <div className="h-full rounded-full bg-primary" style={{ width: `${done}%` }} />
+          <m.div className="h-full rounded-full bg-primary" initial={{ width: 0 }} animate={{ width: `${done}%` }} transition={{ duration: 0.9, ease: EASE, delay: 0.35 }} />
         </div>
         <Button type="button" variant="outline" onClick={() => onOpen(p)} data-policy-id={p.id} className="mt-5 w-full bg-card">View policy</Button>
       </div>

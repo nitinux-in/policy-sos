@@ -7,6 +7,10 @@ import { DittoLogo, PersonAvatar, ThemeToggle, useMediaQuery, useTheme } from '.
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { LazyMotion, MotionConfig, m } from 'motion/react';
+import { SPRING } from './motion';
+
+const loadMotionFeatures = () => import('./motion-features').then((mod) => mod.default);
 
 export type Tab = 'overview' | 'assistant' | 'policies' | 'claims' | 'documents';
 
@@ -80,6 +84,8 @@ export default function App() {
   const first = data?.user.name.split(' ')[0] ?? '';
 
   return (
+    <LazyMotion features={loadMotionFeatures} strict>
+    <MotionConfig reducedMotion="user">
     <TooltipProvider delayDuration={300}>
       <div className="min-h-dvh">
         <a href="#main" className="sr-only z-[60] rounded-full bg-primary px-4 py-2 font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-3">
@@ -100,10 +106,14 @@ export default function App() {
                       onClick={() => (t.id === 'assistant' ? ask() : goTo(t.id))}
                       aria-current={tab === t.id ? 'page' : undefined}
                       {...(t.id === 'assistant' ? { 'data-ask-trigger': '' } : {})}
-                      className="flex h-10 items-center gap-2 rounded-full px-4 text-[14px] font-medium text-ink-2 transition-colors hover:text-ink aria-[current=page]:bg-ink aria-[current=page]:text-white dark:aria-[current=page]:bg-accent dark:aria-[current=page]:text-accent-foreground lg:px-5"
+                      className="relative flex h-10 items-center gap-2 rounded-full px-4 text-[14px] font-medium text-ink-2 transition-colors duration-200 hover:text-ink aria-[current=page]:text-white dark:aria-[current=page]:text-accent-foreground lg:px-5"
                     >
-                      {t.id === 'assistant' && <MessageCircleQuestion className="size-4" aria-hidden="true" />}
-                      {t.label}
+                      {/* The highlight glides from the previous tab to this one */}
+                      {tab === t.id && <m.span layoutId="nav-pill" transition={SPRING} className="absolute inset-0 rounded-full bg-ink dark:bg-accent" aria-hidden="true" />}
+                      <span className="relative flex items-center gap-2">
+                        {t.id === 'assistant' && <MessageCircleQuestion className="size-4" aria-hidden="true" />}
+                        {t.label}
+                      </span>
                     </button>
                   </li>
                 ))}
@@ -153,16 +163,18 @@ export default function App() {
                 if (id === 'assistant') {
                   return (
                     <li key={id} className="flex justify-center">
-                      <button
+                      <m.button
                         type="button"
                         onClick={() => ask()}
                         data-ask-trigger=""
                         aria-label="Ask a question"
                         aria-current={current ? 'page' : undefined}
+                        whileTap={{ scale: 0.9 }}
+                        transition={SPRING}
                         className="grid size-12 place-items-center rounded-full bg-primary text-white shadow-float transition-colors hover:bg-primary-strong"
                       >
                         <MessageCircleQuestion className="size-[22px]" aria-hidden="true" />
-                      </button>
+                      </m.button>
                     </li>
                   );
                 }
@@ -172,10 +184,11 @@ export default function App() {
                       type="button"
                       onClick={() => goTo(id)}
                       aria-current={current ? 'page' : undefined}
-                      className={`flex h-14 w-full flex-col items-center justify-center gap-0.5 rounded-full text-[12px] font-medium transition-colors ${current ? 'text-white' : 'text-white/60 hover:text-white'}`}
+                      className={`relative flex h-14 w-full flex-col items-center justify-center gap-0.5 rounded-full text-[12px] font-medium transition-colors duration-200 ${current ? 'text-white' : 'text-white/60 hover:text-white'}`}
                     >
-                      <t.icon className="size-5" strokeWidth={current ? 2.2 : 1.8} aria-hidden="true" />
-                      {id === 'documents' ? 'Docs' : t.label}
+                      {current && <m.span layoutId="phone-nav-pill" transition={SPRING} className="absolute inset-x-0.5 inset-y-1 rounded-full bg-white/12" aria-hidden="true" />}
+                      <t.icon className="relative size-5" strokeWidth={current ? 2.2 : 1.8} aria-hidden="true" />
+                      <span className="relative">{id === 'documents' ? 'Docs' : t.label}</span>
                     </button>
                   </li>
                 );
@@ -187,6 +200,8 @@ export default function App() {
         <PolicySheet policy={openPolicy} onClose={() => setOpenPolicy(null)} onAsk={ask} />
       </div>
     </TooltipProvider>
+    </MotionConfig>
+    </LazyMotion>
   );
 }
 

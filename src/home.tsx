@@ -59,8 +59,8 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
         <NextRenewal policy={renewals[0]} onOpen={onOpenPolicy} className="hidden @4xl:col-span-4 @4xl:flex" />
       </m.div>
 
-      {/* One strip of figures; dividers stop short of the edges (2 × 2 on phones) */}
-      <m.section variants={rise} aria-label="Summary" className={`${surface} grid grid-cols-2 overflow-hidden @4xl:grid-cols-4`}>
+      {/* Phones: four separate boxes. Wider screens: one strip whose dividers stop short of the edges. */}
+      <m.section variants={rise} aria-label="Summary" className="grid grid-cols-2 gap-3 @4xl:grid-cols-4 @4xl:gap-0 @4xl:overflow-hidden @4xl:rounded-card @4xl:bg-card @4xl:shadow-card">
         <Figure label="Health cover" value={money(fig.healthCoverTotal)} divider="right-bottom">
           <div className="mt-2 flex items-center gap-2">
             <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${money(fig.healthCoverLeft)} of ${money(fig.healthCoverTotal)} left this year`}>
@@ -170,11 +170,11 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
 type Divider = 'right-bottom' | 'bottom-desk-right' | 'right' | undefined;
 /** One figure in the summary strip. Dividers are inset lines, not full-height borders. */
 function Figure({ label, value, divider, children }: { label: string; value: string; divider?: Divider; children?: React.ReactNode }) {
-  const right = divider === 'right-bottom' || divider === 'right' ? 'after:block' : divider === 'bottom-desk-right' ? 'after:hidden @4xl:after:block' : 'after:hidden';
-  const bottom = divider === 'right-bottom' || divider === 'bottom-desk-right' ? 'before:block @4xl:before:hidden' : 'before:hidden';
+  // Dividers only exist in the desktop strip; on phones each figure is its own box
+  const right = divider ? 'after:hidden @4xl:after:block' : 'after:hidden';
   return (
     <div
-      className={`relative min-w-0 px-4 py-3.5 @4xl:px-5 @4xl:py-4 after:absolute after:inset-y-4 after:right-0 after:w-px after:bg-line before:absolute before:inset-x-4 before:bottom-0 before:h-px before:bg-line ${right} ${bottom}`}
+      className={`${surface} relative min-w-0 px-4 py-3.5 after:absolute after:inset-y-4 after:right-0 after:w-px after:bg-line @4xl:rounded-none @4xl:bg-transparent @4xl:px-5 @4xl:py-4 @4xl:shadow-none ${right}`}
     >
       <p className="text-[12px] text-muted-foreground max-md:text-[11.5px]">{label}</p>
       <p className="figure mt-1 text-[24px] max-md:text-[20px]">{value}</p>

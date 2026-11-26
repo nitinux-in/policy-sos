@@ -375,6 +375,7 @@ export async function runAgent(message: string, emit: (s: AgentStep) => void): P
   if (blocked) { emit(blocked.steps[0]); return blocked; }
 
   const col = new Collector(emit);
+  col.injectionRelevant = /co-?pay|guarantee|approv|100\s?%|upload|document|note|e-?mail|instruction|system prompt/i.test(t);
   if (FOLLOW_UP.test(t) && cats.length === 0 && named.length === 0) {
     route(col, 'Follow-up without context');
     return clarify(col, 'Could you ask the full question? I answer each message on its own.', ['Is maternity covered for my spouse?', 'Is my father covered?', 'Is my mother covered?']);

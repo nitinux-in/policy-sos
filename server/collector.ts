@@ -50,6 +50,8 @@ export class Collector {
   cost: CostResult[] = [];
   plan?: ActionPlan;
   injectionSeen = false;
+  /** The question touches what the injected note tried to change (co-pay, guaranteed approval) or the upload itself. */
+  injectionRelevant = false;
   /** Set when part of the question is about insurance outside health and term life. */
   scopeNote?: string;
 
@@ -105,7 +107,8 @@ export class Collector {
       cost: this.cost.length ? this.cost : undefined,
       plan: o.noPlan ? undefined : this.plan,
       safetyNotice: o.safetyNotice,
-      untrustedNotice: this.injectionSeen
+      // Mentioned only when it matters to this question; otherwise the note is filtered out silently
+      untrustedNotice: this.injectionSeen && this.injectionRelevant
         ? 'An uploaded document had instructions aimed at this assistant. They were removed, and uploads are never used as policy evidence.'
         : undefined,
       suggestions: o.suggestions?.length ? o.suggestions.slice(0, 3) : undefined,

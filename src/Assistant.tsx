@@ -51,6 +51,8 @@ export function AssistantView({
   const [morphFrom, setMorphFrom] = useState<string | null>(null);
   const [composerFocus, setComposerFocus] = useState(false);
   const [awayFromLatest, setAwayFromLatest] = useState(false);
+  // The header is part of the sky until content scrolls under it, then it turns to frosted glass
+  const [chatScrolled, setChatScrolled] = useState(false);
   // Replays the landing's greeting each time the phone assistant opens
   const [opens, setOpens] = useState(0);
   useEffect(() => { if (active) setOpens((n) => n + 1); }, [active]);
@@ -285,6 +287,7 @@ export function AssistantView({
     const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     const scrolledUp = el.scrollTop < lastTop.current - 4;
     lastTop.current = el.scrollTop;
+    if ((el.scrollTop > 4) !== chatScrolled) setChatScrolled(el.scrollTop > 4);
     if (fromBottom < 120) { if (awayFromLatest) setAwayFromLatest(false); }
     else if (scrolledUp && fromBottom > 240 && !awayFromLatest) setAwayFromLatest(true);
   };
@@ -331,7 +334,7 @@ export function AssistantView({
         <m.div
           aria-hidden="true"
           initial={false}
-          animate={{ opacity: empty ? 1 : 0 }}
+          animate={{ opacity: empty ? 1 : 0.75 }}
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} /* opacity crossfade only */
           className="pointer-events-none absolute inset-0 overflow-hidden bg-gradient-to-b from-sky-from via-sky-to to-sky-to"
         >
@@ -341,7 +344,7 @@ export function AssistantView({
 
         <header
           {...sheet.handleProps}
-          className={`relative flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 touch-none select-none items-center gap-1 border-b px-1.5 pt-[env(safe-area-inset-top)] transition-[background-color,border-color] duration-500 ${empty ? 'border-transparent bg-transparent' : 'border-line bg-card'}`}
+          className={`relative flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 touch-none select-none items-center gap-1 border-b px-1.5 pt-[env(safe-area-inset-top)] transition-[background-color,border-color] duration-500 ${empty || !chatScrolled ? 'border-transparent bg-transparent' : 'border-line/60 bg-card/75 backdrop-blur-xl'}`}
         >
           {/* Grab handle: swipe down to close */}
           <span className="absolute left-1/2 top-[calc(env(safe-area-inset-top)+5px)] h-1 w-9 -translate-x-1/2 rounded-full bg-ink/15 dark:bg-white/20" aria-hidden="true" />
@@ -436,8 +439,8 @@ export function AssistantView({
       hidden={!active}
       className="grid h-[calc(100dvh-6.5rem)] min-h-[520px] gap-4 pt-1 outline-none xl:grid-cols-[minmax(0,1fr)_340px]"
     >
-      <div className={`${surface} flex min-h-0 flex-col overflow-hidden`}>
-        <header className="flex h-14 shrink-0 items-center gap-2 px-5">
+      <div className={`${surface} flex min-h-0 flex-col overflow-hidden bg-gradient-to-b from-sky-from/70 via-card to-card dark:from-sky-from/40`}>
+        <header className="flex h-14 shrink-0 items-center gap-2 bg-transparent px-5">
           <MascotAvatar />
           <h1 id="companion-title" tabIndex={-1} className="flex-1 text-[15px] font-semibold outline-none">Ditto Assistant</h1>
           {newChat}
@@ -679,7 +682,12 @@ function AnswerView({ a, onAsk, busy, showUntrusted, detailsInline, tinted }: { 
   const verdict = a.verdict && a.verdict !== 'info' ? VERDICT[a.verdict] : null;
   const text = a.text?.trim();
   const keyPoints = a.keyPoints?.filter(Boolean) ?? [];
-  const folded = [...detailSections(a), ...(detailsInline ? evidenceSections(a, { withSteps: false }) : [])];
+  // Steps live in the details now (the "Checked N steps" header is gone once the answer is in)
+  const folded = [...detailSections(a), ...(detailsInline ? evidenceSections(a, { withSteps: true }) : [])];
+  const [open, setOpen] = useState(false);
+  const detailsId = useId();
+  const hasDetails = !!(a.confidence || coverage.length || a.cost?.length || a.comparison || a.plan || folded.length);
+  const lvl = a.confidence ? LEVEL[a.confidence.level] : null;
   return (
     <m.article initial="hidden" animate="show" variants={stagger(0.05)} className="flex min-w-0 gap-2.5" aria-label="Answer">
       <m.span variants={pop} className="mt-0.5 shrink-0"><MascotAvatar /></m.span>
@@ -692,11 +700,9 @@ function AnswerView({ a, onAsk, busy, showUntrusted, detailsInline, tinted }: { 
         )}
 
         <m.div variants={card} className={`overflow-hidden rounded-card rounded-tl-tail ${tinted ? 'bg-background' : 'bg-card shadow-card'}`}>
-          {a.steps.length > 0 && <StepsSummary steps={a.steps} />}
-
           {/* The direct answer first: verdict, one-line headline, then a few scannable points */}
           {(a.headline || keyPoints.length > 0 || text) && (
-          <div className={`px-4 pb-3.5 ${a.steps.length ? 'pt-2' : 'pt-3.5'}`}>
+          <div className="px-4 pb-3 pt-3.5">
             {a.headline && (
               <>
                 {verdict && (
@@ -728,51 +734,89 @@ function AnswerView({ a, onAsk, busy, showUntrusted, detailsInline, tinted }: { 
           </div>
           )}
 
-          {a.confidence && <ConfidenceStrip c={a.confidence} evidence={a.evidence} inline={detailsInline} />}
-
-          {coverage.length > 0 && (
-            <m.ul variants={stagger(0.07)} className={`${block} space-y-3`} aria-label="Coverage by policy">
-              {coverage.map((c) => (
-                <m.li key={c.policyId} variants={riseSm}>
-                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-[14px] font-semibold">{c.policyName}</span>
-                    <m.span variants={pop} className="inline-flex"><Pill tone={STATUS[c.status]} className="font-semibold">{c.status}</Pill></m.span>
-                  </p>
-                  <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">{c.reasoning}</p>
-                </m.li>
-              ))}
-            </m.ul>
-          )}
-
-          {a.cost?.map((c) => (
-            <m.div key={c.policyId} variants={riseSm} className={block}>
-              <p className={label}>Cost estimate · {c.policyName}</p>
-              {c.sufficientData ? (
-                <>
-                  <p className="tnum text-[13px] text-muted-foreground">
-                    <CountUp value={c.estimatedOutOfPocket ?? 0} currency={c.currency} className="text-[20px] font-semibold text-ink" /> you may pay ·{' '}
-                    {c.currency}{(c.estimatedInsurerShare ?? 0).toLocaleString('en-IN')} insurer may pay
-                  </p>
-                  <m.dl variants={stagger(0.04)} className="tnum mt-2 space-y-1 text-[13px]">
-                    {c.inputs.map((i) => <m.div variants={riseSm} key={i.label} className="flex justify-between gap-3"><dt className="text-muted-foreground">{i.label}</dt><dd>{i.value}</dd></m.div>)}
-                    {c.lines.map((l) => <m.div variants={riseSm} key={l.label} className="flex justify-between gap-3"><dt className="text-muted-foreground">{l.label}</dt><dd className="whitespace-nowrap">− {c.currency}{l.amount.toLocaleString('en-IN')}</dd></m.div>)}
-                  </m.dl>
-                </>
-              ) : (
-                <p className="text-[13px] text-ink-2">Needs: <span className="font-medium text-ink">{c.missing.join('; ')}</span></p>
-              )}
+          {/* Tier 2: how sure, and everything else, one tap away */}
+          {hasDetails && (
+            <m.div variants={riseSm} className="px-4 pb-3">
+              <button
+                type="button"
+                aria-expanded={open}
+                aria-controls={open ? detailsId : undefined}
+                onClick={() => setOpen((o) => !o)}
+                className="-ml-2 inline-flex min-h-9 items-center gap-2 rounded-full px-2 text-[13px] font-medium text-ink-2 transition-colors hover:bg-accent/50"
+              >
+                {a.confidence && lvl && (
+                  <>
+                    <span className="flex gap-0.5" aria-hidden="true">
+                      {[0, 1, 2].map((i) => <span key={i} className={`h-1.5 w-3 rounded-full ${i < lvl.filled ? lvl.bar : 'bg-muted'}`} />)}
+                    </span>
+                    <span>{a.confidence.label}</span>
+                    <span className="text-muted-foreground" aria-hidden="true">·</span>
+                  </>
+                )}
+                <span className="text-link">{open ? 'Hide details' : 'Details'}</span>
+                <ChevronDown className={`size-3.5 text-link transition-transform duration-200 ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+              </button>
             </m.div>
-          ))}
+          )}
+          <AnimatePresence initial={false}>
+            {open && (
+              <m.div
+                id={detailsId}
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: EASE }}
+                className="overflow-hidden"
+              >
+              {a.confidence && <ConfidenceStrip c={a.confidence} evidence={a.evidence} inline={detailsInline} />}
 
-          {a.comparison && <ComparisonView c={a.comparison} />}
-          {a.plan && <PlanView plan={a.plan} />}
+              {coverage.length > 0 && (
+                <m.ul variants={stagger(0.07)} className={`${block} space-y-3`} aria-label="Coverage by policy">
+                  {coverage.map((c) => (
+                    <m.li key={c.policyId} variants={riseSm}>
+                      <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="text-[14px] font-semibold">{c.policyName}</span>
+                        <m.span variants={pop} className="inline-flex"><Pill tone={STATUS[c.status]} className="font-semibold">{c.status}</Pill></m.span>
+                      </p>
+                      <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">{c.reasoning}</p>
+                    </m.li>
+                  ))}
+                </m.ul>
+              )}
 
-          {folded.length > 0 && <m.div variants={riseSm}><FoldedSections sections={folded} /></m.div>}
+              {a.cost?.map((c) => (
+                <m.div key={c.policyId} variants={riseSm} className={block}>
+                  <p className={label}>Cost estimate · {c.policyName}</p>
+                  {c.sufficientData ? (
+                    <>
+                      <p className="tnum text-[13px] text-muted-foreground">
+                        <CountUp value={c.estimatedOutOfPocket ?? 0} currency={c.currency} className="text-[20px] font-semibold text-ink" /> you may pay ·{' '}
+                        {c.currency}{(c.estimatedInsurerShare ?? 0).toLocaleString('en-IN')} insurer may pay
+                      </p>
+                      <m.dl variants={stagger(0.04)} className="tnum mt-2 space-y-1 text-[13px]">
+                        {c.inputs.map((i) => <m.div variants={riseSm} key={i.label} className="flex justify-between gap-3"><dt className="text-muted-foreground">{i.label}</dt><dd>{i.value}</dd></m.div>)}
+                        {c.lines.map((l) => <m.div variants={riseSm} key={l.label} className="flex justify-between gap-3"><dt className="text-muted-foreground">{l.label}</dt><dd className="whitespace-nowrap">− {c.currency}{l.amount.toLocaleString('en-IN')}</dd></m.div>)}
+                      </m.dl>
+                    </>
+                  ) : (
+                    <p className="text-[13px] text-ink-2">Needs: <span className="font-medium text-ink">{c.missing.join('; ')}</span></p>
+                  )}
+                </m.div>
+              ))}
+
+              {a.comparison && <ComparisonView c={a.comparison} />}
+              {a.plan && <PlanView plan={a.plan} />}
+
+              {folded.length > 0 && <m.div variants={riseSm}><FoldedSections sections={folded} /></m.div>}
+              </m.div>
+            )}
+          </AnimatePresence>
 
           {a.suggestions && a.suggestions.length > 0 && (
-            <m.div variants={stagger(0.05)} className={`${block} flex flex-wrap gap-2`}>
-              {a.suggestions.map((q) => (
-                <m.button key={q} variants={riseSm} whileTap={{ scale: 0.96 }} type="button" onClick={() => onAsk(q)} disabled={busy} className="min-h-9 max-w-full rounded-full border border-line bg-card px-3.5 py-2 text-left text-[13px] font-medium leading-snug transition-colors hover:border-primary/40 hover:bg-accent/40 disabled:text-muted-foreground">
+            <m.div variants={stagger(0.05)} className={`${block} flex flex-col items-start gap-0.5 py-2.5`} role="group" aria-label="Ask next">
+              {a.suggestions.slice(0, 2).map((q) => (
+                <m.button key={q} variants={riseSm} type="button" onClick={() => onAsk(q)} disabled={busy} className="-ml-2 inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full px-2 text-left text-[13px] font-medium leading-snug text-link transition-colors hover:bg-accent/50 disabled:text-muted-foreground">
+                  <ArrowDown className="size-3.5 shrink-0 -rotate-90" aria-hidden="true" />
                   {q}
                 </m.button>
               ))}

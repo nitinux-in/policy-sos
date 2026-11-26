@@ -166,7 +166,7 @@ export default function App() {
             {/* Tablet and desktop: pill navigation */}
             <nav aria-label="Main" className="mx-auto hidden md:block">
               <ul className="flex items-center gap-1 rounded-full bg-card p-1 shadow-card">
-                {NAV.map((t) => (
+                {NAV.filter((t) => t.id !== 'assistant').map((t) => (
                   <li key={t.id}>
                     <a
                       href={PATH[t.id]}
@@ -225,6 +225,25 @@ export default function App() {
             </Suspense>
           )}
         </main>
+
+        {/* Tablet and desktop: the assistant lives in a floating Ask button, not in the nav */}
+        {data && wide && tab !== 'assistant' && (
+          <m.a
+            href={PATH.assistant}
+            onClick={(e) => { if (!isPlainClick(e)) return; e.preventDefault(); ask(); }}
+            data-ask-trigger=""
+            aria-label="Ask Ditto Assistant"
+            initial={{ opacity: 0, y: 12, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            whileHover={{ y: -2 }}
+            whileTap={{ scale: 0.95 }}
+            transition={SPRING}
+            className="fixed bottom-6 right-6 z-40 flex h-14 items-center gap-2.5 rounded-full bg-primary py-1.5 pl-1.5 pr-5 text-[15px] font-semibold text-white shadow-float transition-colors hover:bg-primary-strong"
+          >
+            <MascotAvatar className="size-11 ring-2 ring-white/70" />
+            Ask
+          </m.a>
+        )}
 
         {/* Phone: floating dark pill navigation with the assistant in the middle */}
         {data && (

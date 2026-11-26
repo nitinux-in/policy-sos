@@ -303,12 +303,13 @@ function AssistantLoading() {
 
 function LoadingState() {
   return (
-    <div className="space-y-4 pt-4" aria-busy="true" aria-label="Loading your policies">
+    // Invisible unless loading takes a moment, so a fast load starts from a clean, empty page
+    <m.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5, duration: 0.3 }} className="space-y-4 pt-4" aria-busy="true" aria-label="Loading your policies">
       <Skeleton className="h-10 w-48 rounded-full" />
       <Skeleton className="h-56 rounded-hero" />
       <div className="grid grid-cols-2 gap-3 @4xl:grid-cols-4">
         {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-32 rounded-card" />)}
       </div>
-    </div>
+    </m.div>
   );
 }

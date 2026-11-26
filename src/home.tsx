@@ -14,7 +14,8 @@ import { explainPrompt } from './screens';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { EASE, SPRING, rise, stagger } from './motion';
+import type { Variants } from 'motion/react';
+import { EASE, SPRING, stagger } from './motion';
 
 // Status as plain text; colour only where it needs attention
 const CLAIM_STATUS = {
@@ -40,6 +41,17 @@ const viewAll = (label: string, onClick: () => void) => (
 
 // ---------- Home (dashboard) ----------
 
+/**
+ * First load of a visit: the page starts empty and each card floats up and settles, one after another.
+ * Returning to Home later just shows it (no replay). Reduced motion: a plain fade.
+ */
+let homeSeen = false;
+const floatIn: Variants = {
+  hidden: { opacity: 0, y: 36, scale: 0.97 },
+  show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', bounce: 0.22, visualDuration: 0.7 } },
+};
+const cascade = stagger(0.09, 0.15);
+
 export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data: PortfolioData; onOpenPolicy: (p: Policy) => void; onAsk: (q?: string) => void; onNavigate: (t: Tab) => void }) {
   const health = data.policies.filter((p) => p.category === 'health');
   const life = data.policies.filter((p) => p.category === 'life');
@@ -52,15 +64,15 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
   const leftPct = Math.round((fig.healthCoverLeft / Math.max(1, fig.healthCoverTotal)) * 100);
 
   return (
-    <m.div initial="hidden" animate="show" variants={stagger(0.08)} className="space-y-4 pt-2 @4xl:pt-4">
+    <m.div initial={homeSeen ? false : 'hidden'} animate="show" variants={cascade} onAnimationComplete={() => { homeSeen = true; }} className="space-y-4 pt-2 @4xl:pt-4">
 
-      <m.div variants={rise} className="grid gap-4 @4xl:grid-cols-12">
-        <AskCard firstName={first} onAsk={onAsk} className="@4xl:col-span-8" />
-        <NextRenewal policy={renewals[0]} onOpen={onOpenPolicy} className="hidden @4xl:col-span-4 @4xl:flex" />
+      <m.div variants={cascade} className="grid gap-4 @4xl:grid-cols-12">
+        <m.div variants={floatIn} className="flex min-w-0 @4xl:col-span-8"><AskCard firstName={first} onAsk={onAsk} className="flex-1" /></m.div>
+        <m.div variants={floatIn} className="hidden min-w-0 @4xl:col-span-4 @4xl:flex"><NextRenewal policy={renewals[0]} onOpen={onOpenPolicy} className="flex flex-1" /></m.div>
       </m.div>
 
       {/* Phones: four separate boxes. Wider screens: one strip whose dividers stop short of the edges. */}
-      <m.section variants={rise} aria-label="Summary" className="grid grid-cols-2 gap-3 @4xl:grid-cols-4 @4xl:gap-0 @4xl:overflow-hidden @4xl:rounded-card @4xl:bg-card @4xl:shadow-card">
+      <m.section variants={floatIn} aria-label="Summary" className="grid grid-cols-2 gap-3 @4xl:grid-cols-4 @4xl:gap-0 @4xl:overflow-hidden @4xl:rounded-card @4xl:bg-card @4xl:shadow-card">
         <Figure label="Health cover" value={money(fig.healthCoverTotal)} divider="right-bottom">
           <div className="mt-2 flex items-center gap-2">
             <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${money(fig.healthCoverLeft)} of ${money(fig.healthCoverTotal)} left this year`}>
@@ -86,8 +98,9 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
         </Figure>
       </m.section>
 
-      <m.div variants={rise} className="grid gap-4 @4xl:grid-cols-12">
-        <Panel title="Your policies" action={viewAll('View all', () => onNavigate('policies'))} className={`${flat} @4xl:col-span-8`}>
+      <m.div variants={cascade} className="grid gap-4 @4xl:grid-cols-12">
+        <m.div variants={floatIn} className="flex min-w-0 @4xl:col-span-8">
+        <Panel title="Your policies" action={viewAll('View all', () => onNavigate('policies'))} className={`${flat} flex-1`}>
           <ul className="px-2">
             {renewals.map((p) => (
               <li key={p.id} className="group flex items-center gap-1 rounded-card transition-colors hover:bg-muted/60 active:bg-muted/80">
@@ -117,7 +130,9 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
           </ul>
         </Panel>
 
-        <div className="grid gap-4 @4xl:col-span-4 @4xl:grid-rows-[auto_1fr]">
+        </m.div>
+
+        <m.div variants={floatIn} className="grid gap-4 @4xl:col-span-4 @4xl:grid-rows-[auto_1fr]">
           <Panel title="Recent claims" action={viewAll('View all', () => onNavigate('claims'))} className={flat}>
             {data.claims.length === 0 && <p className="px-5 pb-4 text-[14px] text-muted-foreground">No past claims.</p>}
             <ul className="px-5">
@@ -159,7 +174,7 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
               ))}
             </ul>
           </Panel>
-        </div>
+        </m.div>
       </m.div>
     </m.div>
   );

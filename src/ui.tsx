@@ -39,11 +39,28 @@ export function Mascot({ className = '' }: { className?: string }) {
 }
 
 /** Initials avatar for the signed-in person. */
+/**
+ * Illustrated profile avatar (no photos in the demo data): head, hair and shoulders on a soft tint. Colours come
+ * from the name, so each person keeps the same avatar everywhere.
+ */
+const AVATAR_TINTS = ['#dbe9ff', '#ffe6d6', '#dff3e7', '#ece4ff', '#fff1c9'];
+const AVATAR_SKIN = ['#f2c9a5', '#dca57e', '#c08660', '#9a6544'];
+const AVATAR_TOP = ['#2a2b33', '#4a3428', '#1f2430', '#5b3b2a'];
 export function PersonAvatar({ name, className = '' }: { name: string; className?: string }) {
-  const initials = name.split(' ').map((n) => n[0]).slice(0, 2).join('');
+  const h = [...name].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
+  const tint = AVATAR_TINTS[h % AVATAR_TINTS.length];
+  const skin = AVATAR_SKIN[(h >>> 3) % AVATAR_SKIN.length];
+  const hair = AVATAR_TOP[(h >>> 5) % AVATAR_TOP.length];
+  const shirt = ['#0b6bea', '#2f8f6a', '#7a5ae0', '#d9714b'][(h >>> 7) % 4];
   return (
-    <span className={cn('inline-grid size-10 shrink-0 place-items-center rounded-full bg-ink text-[13px] font-semibold text-white dark:bg-accent dark:text-accent-foreground', className)} aria-hidden="true">
-      {initials}
+    <span className={cn('inline-block size-10 shrink-0 overflow-hidden rounded-full', className)} aria-hidden="true">
+      <svg viewBox="0 0 40 40" className="size-full" role="presentation">
+        <rect width="40" height="40" fill={tint} />
+        <path d="M6 40c1.5-8 7.2-12 14-12s12.5 4 14 12z" fill={shirt} />
+        <rect x="17" y="21" width="6" height="7" rx="3" fill={skin} />
+        <circle cx="20" cy="17" r="7.5" fill={skin} />
+        <path d="M12.4 16.2c0-5 3.4-8.2 7.6-8.2s7.6 3.2 7.6 8.2c-1.6-2.6-4.3-4-7.6-4s-6 1.4-7.6 4z" fill={hair} />
+      </svg>
     </span>
   );
 }

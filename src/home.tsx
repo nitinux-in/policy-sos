@@ -8,7 +8,7 @@ import type { Policy, PortfolioData } from '../shared/types';
 import { coverageMatrix, summaryFigures } from '../shared/insights';
 import { daysUntil, fmtDate, fmtMoney } from './format';
 import { HOME_CHIPS } from './prompts';
-import { Mascot, MascotAvatar, Panel, SEND_BUTTON, surface } from './ui';
+import { Mascot, MascotAvatar, Panel, PersonAvatar, SEND_BUTTON, surface } from './ui';
 import type { Tab } from './App';
 import { explainPrompt } from './screens';
 import { Button } from '@/components/ui/button';
@@ -75,9 +75,7 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
         <Figure label="People covered" value={String(people.length)} divider="right">
           <div className="mt-2 flex items-center">
             <span className="flex -space-x-1.5" aria-hidden="true">
-              {people.map((x) => (
-                <span key={x.key} className="grid size-6 place-items-center rounded-full bg-accent text-[10px] font-semibold text-link ring-2 ring-card">{x.name[0]}</span>
-              ))}
+              {people.map((x) => <PersonAvatar key={x.key} name={x.name} className="size-6 ring-2 ring-card" />)}
             </span>
             <span className="ml-2 truncate text-[12px] text-muted-foreground max-md:hidden">{people.map((x) => x.name.split(' ')[0]).join(', ')}</span>
             <span className="sr-only">{people.map((x) => x.name.split(' ')[0]).join(', ')}</span>

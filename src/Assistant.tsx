@@ -5,7 +5,7 @@ import { AnimatePresence, LayoutGroup, m, useReducedMotion, type Variants } from
 import NumberFlow from '@number-flow/react';
 import type { AgentAnswer, AgentStep, Confidence, ConfidenceFactor, CoverageStatus, EvidenceItem, FactorStatus, Policy, PortfolioData, Verdict } from '../shared/types';
 import { askAgent, fmtMoney } from './format';
-import { FEATURED } from './prompts';
+import { FEATURED, LANDING } from './prompts';
 import type { AskRequest } from './App';
 import { CategoryIcon, Mascot, MascotAvatar, Pill, SEND_BUTTON, surface, TONE, useMediaQuery, useOverlay } from './ui';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -274,7 +274,7 @@ export function AssistantView({
           </AnimatePresence>
         </Button>
       </m.div>
-      <p className="mt-2 text-center text-[12px] text-muted-foreground">Your insurer makes the final decision on claims.</p>
+      {!empty && <p className="mt-2 text-center text-[12px] text-muted-foreground">Your insurer makes the final decision on claims.</p>}
     </form>
   );
 
@@ -351,7 +351,8 @@ export function AssistantView({
           <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Back" className="text-ink-2">
             <ArrowLeft className="size-5" aria-hidden="true" />
           </Button>
-          <h2 id="companion-title" className="flex-1 text-center text-[15px] font-semibold">Ditto Assistant</h2>
+          <h2 id="companion-title" className={`flex-1 text-center text-[15px] font-semibold ${empty ? 'sr-only' : ''}`}>Ditto Assistant</h2>
+          {empty && <span className="flex-1" aria-hidden="true" />}
           {newChat || <span className="size-11" aria-hidden="true" />}
         </header>
 
@@ -373,22 +374,21 @@ export function AssistantView({
                     aria-hidden="true"
                     animate={listening ? { opacity: reduce ? 0.9 : [0.55, 0.95, 0.55], scale: 1.12 } : { opacity: 0.55, scale: 1 }}
                     transition={listening && !reduce ? { duration: 2.2, repeat: Infinity, ease: 'easeInOut' } : { duration: 0.4 }}
-                    className="absolute size-36 rounded-full bg-primary/30 blur-2xl dark:bg-primary/40"
+                    className="absolute size-44 rounded-full bg-primary/30 blur-2xl dark:bg-primary/40"
                   />
                   <m.div variants={rise} className="relative">
                     <m.div animate={listening ? { scale: 1.06, rotate: -4, y: -2 } : { scale: 1, rotate: 0, y: 0 }} transition={SPRING}>
                       {/* Floats for two cycles after opening, and keeps floating while the person types */}
-                      <span className="animate-float block" style={{ animationIterationCount: listening ? 'infinite' : 2 }}><Mascot className="w-24" /></span>
+                      <span className="animate-float block" style={{ animationIterationCount: listening ? 'infinite' : 2 }}><Mascot className="w-32" /></span>
                     </m.div>
                   </m.div>
                 </div>
                 {/* Re-keyed on each open so the greeting replays; it holds nothing focusable */}
                 <m.div key={opens} initial="hidden" animate="show" className="mt-3 text-center">
-                  <WordReveal as="p" text={`Hi, ${firstName}`} className="text-[14px] font-medium text-ink-2" />
-                  <WordReveal as="h3" text="How can I help with your cover?" delay={0.12} className="mx-auto mt-1 max-w-[17em] text-[22px] font-semibold leading-tight tracking-tight text-ink" />
+                  <WordReveal as="h3" text={`Hi ${firstName}, how can I help?`} className="mx-auto max-w-[17em] text-[17px] font-semibold leading-tight tracking-tight text-ink" />
                 </m.div>
                 <m.ul variants={stagger(0.06, 0.25)} className="mt-6 space-y-2" aria-label="Suggested questions">
-                  {FEATURED.map((s) => (
+                  {LANDING.map((s) => (
                     <m.li key={s.q} variants={riseSm}>
                       <m.button
                         type="button"
@@ -398,14 +398,14 @@ export function AssistantView({
                         onClick={() => { setMorphFrom(s.q); send(s.q); }}
                         aria-label={`${s.title}: ${s.q}`}
                         style={{ borderRadius: 16 }}
-                        className="flex w-full items-center gap-3 border border-white/70 bg-card/70 p-3 text-left shadow-card backdrop-blur-md transition-colors hover:bg-card/90 dark:border-white/[0.06] dark:bg-card/60 [@media(pointer:coarse)]:bg-card/90 [@media(pointer:coarse)]:backdrop-blur-none"
+                        className="flex w-full items-center gap-3 border border-white/70 bg-card/70 px-3 py-2.5 text-left shadow-card backdrop-blur-md transition-colors hover:bg-card/90 dark:border-white/[0.06] dark:bg-card/60 [@media(pointer:coarse)]:bg-card/90 [@media(pointer:coarse)]:backdrop-blur-none"
                       >
-                        <span className={`grid size-9 shrink-0 place-items-center rounded-full ${s.urgent ? 'bg-bad-bg text-bad' : 'bg-accent text-link'}`} aria-hidden="true">
-                          <s.icon className="size-[17px]" />
+                        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent text-link" aria-hidden="true">
+                          <s.icon className="size-4" />
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block text-[14px] font-semibold leading-tight text-ink">{s.title}</span>
-                          <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">{s.q}</span>
+                          <span className="block text-[13px] font-semibold leading-tight text-ink">{s.title}</span>
+                          <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">{s.q}</span>
                         </span>
                         <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                       </m.button>

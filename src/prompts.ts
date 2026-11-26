@@ -25,6 +25,14 @@ export const HOME_CHIPS: { label: string; q: string }[] = [
   { label: 'What’s not covered', q: 'What is not covered in my policy?' },
 ];
 
+/** Phone assistant start screen: the everyday questions (same as the home chips) */
+export const LANDING: { title: string; q: string; icon: LucideIcon }[] = [
+  { title: 'File a claim', q: 'How do I file a claim?', icon: FileCheck2 },
+  { title: 'Cashless hospitals', q: 'Which hospitals are cashless?', icon: Hospital },
+  { title: 'Room rent limit', q: PROMPTS.roomRent, icon: BedDouble },
+  { title: 'What’s not covered', q: 'What is not covered in my policy?', icon: ShieldCheck },
+];
+
 /** Assistant landing tiles */
 export const FEATURED: { title: string; hint: string; icon: LucideIcon; q: string; urgent?: boolean }[] = [
   { title: 'In hospital', hint: 'Dad’s in hospital', icon: Hospital, q: PROMPTS.emergency, urgent: true },

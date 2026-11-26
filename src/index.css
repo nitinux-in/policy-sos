@@ -119,10 +119,53 @@ body {
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
 }
-h1, h2, h3 {
-  letter-spacing: -0.02em;
+h1, h2, h3, h4 {
+  letter-spacing: -0.012em;
   line-height: 1.2;
+  text-wrap: balance;
 }
+p { text-wrap: pretty; }
+
+/* Type: tracking depends on size — tight on large figures, neutral body, slightly open on small labels */
+:where(.text-\[26px\], .text-\[28px\], .text-\[30px\], .text-\[34px\], .text-\[20px\], .text-\[22px\]) { letter-spacing: -0.022em; line-height: 1.1; }
+:where(.text-\[11px\], .text-\[12px\]) { letter-spacing: 0.01em; }
+
+/* Phones: keep focused elements clear of the floating navigation */
+@media (max-width: 767px) { html { scroll-padding-bottom: 104px; } }
+/* Desktop pointers: no page rubber-band; touch keeps pull-to-refresh */
+@media (pointer: fine) { html { overscroll-behavior: none; } }
+:where(a[href], button, [role='button'], summary, label, input, textarea, select) { touch-action: manipulation; }
+
+/* Press feedback: everything tappable answers on press, not on release */
+@media (prefers-reduced-motion: no-preference) {
+  :where(button, a[href], [role='button'], summary):not(:disabled):active { transform: scale(0.98); }
+}
+
+/* Translucent chrome: content scrolls under a frosted header and phone nav */
+.chrome-glass {
+  background: color-mix(in srgb, var(--color-page) 74%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(170%);
+  backdrop-filter: blur(16px) saturate(170%);
+  transition: box-shadow 200ms ease;
+}
+.chrome-glass[data-scrolled] { box-shadow: 0 1px 0 color-mix(in srgb, var(--color-line) 80%, transparent), 0 8px 24px -16px rgb(16 24 40 / 0.18); }
+.nav-glass {
+  background: rgb(20 23 28 / 0.8);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 12px 32px -12px rgb(0 0 0 / 0.45);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .chrome-glass { background: var(--color-page); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .nav-glass { background: rgb(20 23 28); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@media (prefers-contrast: more) {
+  .chrome-glass { background: var(--color-page); backdrop-filter: none; -webkit-backdrop-filter: none; border-bottom: 1px solid var(--color-ink-3); }
+  .nav-glass { background: #000; backdrop-filter: none; -webkit-backdrop-filter: none; outline: 1px solid #fff; }
+}
+
+/* Theme change: a short cross-fade (View Transitions) instead of a full-screen flash */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 220ms; animation-timing-function: ease-out; }
 
 /* One clear, consistent focus treatment for keyboard users (in the base layer, so utilities such as
    outline-none on programmatically focused containers can still override it) */

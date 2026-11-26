@@ -10,7 +10,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Dialog } from 'radix-ui';
+import { useSpringSheet } from './sheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { m } from 'motion/react';
@@ -92,7 +93,7 @@ function PolicyTable({ policies, onOpen, onAsk }: { policies: Policy[]; onOpen: 
       <ul className="px-2 @xl:hidden">
         {policies.map((p) => (
           <li key={p.id}>
-            <button type="button" onClick={() => onOpen(p)} data-policy-id={p.id} className="focus-ring-inset flex w-full items-center gap-3 rounded-card px-3 py-3 text-left transition-colors hover:bg-muted/60">
+            <button type="button" onClick={() => onOpen(p)} data-policy-id={p.id} className="focus-ring-inset flex w-full items-center gap-3 rounded-card px-3 py-3 text-left transition-colors hover:bg-muted/60 active:bg-muted/80">
               <CategoryIcon c={p.category} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[14px] font-semibold">{p.name}</span>
@@ -134,7 +135,9 @@ export function PoliciesScreen({ data, onOpenPolicy, onAsk }: { data: PortfolioD
           <Search className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             id="policy-search"
+            name="policy-search"
             type="search"
+            autoComplete="off"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search benefits, people, clauses…"
@@ -202,68 +205,86 @@ export function PolicySheet({ policy: p, onClose, onAsk }: { policy: Policy | nu
     target?.focus({ preventScroll: true });
   };
   const groups = pol ? (Object.keys(TYPE_LABEL) as Clause['type'][]).map((t) => ({ t, items: pol.clauses.filter((c) => c.type === t) })).filter((g) => g.items.length) : [];
+  const panelRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Phones: a bottom sheet you can drag or flick away. Wider screens: a side panel. Same spring both ways.
+  const sheet = useSpringSheet({ open: !!p, onDismiss: onClose, panelRef, axis: wide ? 'x' : 'y', draggable: !wide, scrollRef });
   return (
-    <Sheet open={!!p} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent
-        onCloseAutoFocus={restoreFocus}
-        side={wide ? 'right' : 'bottom'}
-        className={wide ? 'w-full gap-0 border-0 sm:max-w-[500px] md:m-3 md:h-[calc(100%-1.5rem)] md:rounded-hero' : 'max-h-[90dvh] gap-0 rounded-t-hero border-0'}
-      >
-        {pol && (
-          <>
-            <SheetHeader className="flex-row items-start gap-3 px-5 pb-2 pt-5 pr-14 md:px-6">
-              <CategoryIcon c={pol.category} />
-              <div className="min-w-0">
-                <SheetTitle className="text-[19px] font-semibold tracking-tight">{pol.name}</SheetTitle>
-                <SheetDescription className="text-[13px]">{pol.provider} · {pol.policyNumber}</SheetDescription>
+    <Dialog.Root open={!!p} onOpenChange={(o) => !o && onClose()}>
+      {sheet.present && pol && (
+        <Dialog.Portal forceMount>
+          <Dialog.Overlay forceMount asChild>
+            <m.div className="fixed inset-0 z-50 bg-black/45" style={{ opacity: sheet.progress }} />
+          </Dialog.Overlay>
+          <Dialog.Content forceMount asChild onCloseAutoFocus={restoreFocus}>
+            <m.div
+              ref={panelRef}
+              data-slot="sheet-content"
+              style={wide ? { x: sheet.offset } : { y: sheet.offset }}
+              className={`fixed z-50 flex flex-col bg-background shadow-float outline-none ${
+                wide ? 'inset-y-3 right-3 w-[min(500px,calc(100%-1.5rem))] rounded-hero' : 'inset-x-0 bottom-0 max-h-[90dvh] rounded-t-hero'
+              }`}
+            >
+              <div {...sheet.handleProps} className={`relative flex shrink-0 items-start gap-3 px-5 pb-2 pr-14 md:px-6 ${wide ? 'pt-5' : 'touch-none select-none pt-6'}`}>
+                {!wide && <span className="absolute left-1/2 top-2 h-1 w-9 -translate-x-1/2 rounded-full bg-ink/15 dark:bg-white/20" aria-hidden="true" />}
+                <CategoryIcon c={pol.category} />
+                <div className="min-w-0">
+                  <Dialog.Title className="text-[19px] font-semibold tracking-tight text-balance" translate="no">{pol.name}</Dialog.Title>
+                  <Dialog.Description className="text-[13px] text-muted-foreground">{pol.provider} · {pol.policyNumber}</Dialog.Description>
+                </div>
+                <Dialog.Close asChild>
+                  <Button type="button" variant="ghost" size="icon" aria-label="Close" className={`absolute right-2 text-ink-2 ${wide ? 'top-3' : 'top-4'}`}>
+                    <X className="size-5" aria-hidden="true" />
+                  </Button>
+                </Dialog.Close>
               </div>
-            </SheetHeader>
-            <div className="overflow-y-auto overscroll-contain px-5 pb-[max(env(safe-area-inset-bottom),24px)] pt-3 md:px-6">
-              <div className="flex flex-wrap gap-2"><StatusPill p={pol} /></div>
-              <p className="mt-3 text-[14px] text-ink-2">{pol.summary}</p>
-              <dl className="mt-4 grid grid-cols-2 gap-2">
-                {pol.keyFacts.map((f) => (
-                  <div key={f.label} className="rounded-tile bg-muted p-3">
-                    <dt className="text-[12px] text-muted-foreground">{f.label}</dt>
-                    <dd className="mt-0.5 text-[14px] font-semibold">{f.value}</dd>
-                  </div>
-                ))}
-              </dl>
-              <dl className="mt-2 space-y-1.5 rounded-tile bg-muted p-3.5 text-[13px]">
-                <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted-foreground">Covers</dt><dd>{pol.insured.join(', ')}</dd></div>
-                <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted-foreground">Period</dt><dd>{fmtDate(pol.startDate)} – {fmtDate(pol.renewalDate)}</dd></div>
-                {pol.claimContact && <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted-foreground">Claims</dt><dd>{pol.claimContact}</dd></div>}
-              </dl>
-              <Button type="button" onClick={() => onAsk(explainPrompt(pol))} className="mt-5 w-full">
-                <MascotAvatar className="-ml-1 size-7 ring-2 ring-white/70" /> Explain this policy
-              </Button>
+            <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[max(env(safe-area-inset-bottom),24px)] pt-3 md:px-6">
+                <div className="flex flex-wrap gap-2"><StatusPill p={pol} /></div>
+                <p className="mt-3 text-[14px] text-ink-2">{pol.summary}</p>
+                <dl className="mt-4 grid grid-cols-2 gap-2">
+                  {pol.keyFacts.map((f) => (
+                    <div key={f.label} className="rounded-tile bg-muted p-3">
+                      <dt className="text-[12px] text-muted-foreground">{f.label}</dt>
+                      <dd className="mt-0.5 text-[14px] font-semibold">{f.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <dl className="mt-2 space-y-1.5 rounded-tile bg-muted p-3.5 text-[13px]">
+                  <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted-foreground">Covers</dt><dd>{pol.insured.join(', ')}</dd></div>
+                  <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted-foreground">Period</dt><dd>{fmtDate(pol.startDate)} – {fmtDate(pol.renewalDate)}</dd></div>
+                  {pol.claimContact && <div className="flex gap-2"><dt className="w-20 shrink-0 text-muted-foreground">Claims</dt><dd>{pol.claimContact}</dd></div>}
+                </dl>
+                <Button type="button" onClick={() => onAsk(explainPrompt(pol))} className="mt-5 w-full">
+                  <MascotAvatar className="-ml-1 size-7 ring-2 ring-white/70" /> Explain this policy
+                </Button>
 
-              <h3 className="mt-8 text-[16px] font-semibold">Policy clauses</h3>
-              <div className="mt-3 space-y-5">
-                {groups.map((g) => (
-                  <section key={g.t} aria-label={TYPE_LABEL[g.t]}>
-                    <h4 className="mb-1 text-[13px] font-semibold text-muted-foreground">{TYPE_LABEL[g.t]}</h4>
-                    <Accordion type="multiple" className="rounded-tile bg-muted px-3.5">
-                      {g.items.map((c) => (
-                        <AccordionItem key={c.id} value={c.id} className="border-line">
-                          <AccordionTrigger className="min-h-12 items-center py-2.5 text-[14px] hover:no-underline">
-                            <span className="flex flex-1 flex-wrap items-baseline justify-between gap-x-3">
-                              <span className="font-medium">{c.title}</span>
-                              <span className="text-[12px] font-normal text-muted-foreground">{c.section}</span>
-                            </span>
-                          </AccordionTrigger>
-                          <AccordionContent className="text-[13px] leading-relaxed text-ink-2">{c.text}</AccordionContent>
-                        </AccordionItem>
-                      ))}
-                    </Accordion>
-                  </section>
-                ))}
+                <h3 className="mt-8 text-[16px] font-semibold">Policy clauses</h3>
+                <div className="mt-3 space-y-5">
+                  {groups.map((g) => (
+                    <section key={g.t} aria-label={TYPE_LABEL[g.t]}>
+                      <h4 className="mb-1 text-[13px] font-semibold text-muted-foreground">{TYPE_LABEL[g.t]}</h4>
+                      <Accordion type="multiple" className="rounded-tile bg-muted px-3.5">
+                        {g.items.map((c) => (
+                          <AccordionItem key={c.id} value={c.id} className="border-line">
+                            <AccordionTrigger className="min-h-12 items-center py-2.5 text-[14px] hover:no-underline">
+                              <span className="flex flex-1 flex-wrap items-baseline justify-between gap-x-3">
+                                <span className="font-medium">{c.title}</span>
+                                <span className="text-[12px] font-normal text-muted-foreground">{c.section}</span>
+                              </span>
+                            </AccordionTrigger>
+                            <AccordionContent className="text-[13px] leading-relaxed text-ink-2">{c.text}</AccordionContent>
+                          </AccordionItem>
+                        ))}
+                      </Accordion>
+                    </section>
+                  ))}
+                </div>
               </div>
-            </div>
-          </>
-        )}
-      </SheetContent>
-    </Sheet>
+            </m.div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      )}
+    </Dialog.Root>
   );
 }
 
@@ -377,7 +398,7 @@ export function DocumentsScreen({ data }: { data: PortfolioData }) {
         <Accordion type="multiple" className="px-2">
           {data.documents.map((d) => (
             <AccordionItem key={d.id} value={d.id} className="border-line-2">
-              <AccordionTrigger className="min-h-16 items-center gap-3 rounded-tile px-3 py-3 hover:bg-muted/60 hover:no-underline">
+              <AccordionTrigger className="min-h-16 items-center gap-3 rounded-tile px-3 py-3 hover:bg-muted/60 active:bg-muted/80 hover:no-underline">
                 <span className="flex flex-1 items-center gap-3">
                   <DocIcon trusted={d.trusted} />
                   <span className="min-w-0">

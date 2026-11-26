@@ -28,6 +28,9 @@ const viewAll = (onClick: () => void, label = 'View all') => (
   </Button>
 );
 
+/** The entrance cascade plays once per visit; returning to Home just shows it. */
+let homeSeen = false;
+
 export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data: PortfolioData; onOpenPolicy: (p: Policy) => void; onAsk: (q?: string) => void; onNavigate: (t: Tab) => void }) {
   const attention = useMemo(() => needsAttention(data), [data]);
   const matrix = useMemo(() => coverageMatrix(data), [data]);
@@ -54,7 +57,7 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
   };
 
   return (
-    <m.div initial="hidden" animate="show" variants={stagger(0.08)} className="space-y-4 pt-2 @4xl:pt-4">
+    <m.div initial={homeSeen ? false : 'hidden'} animate="show" variants={stagger(0.08)} onAnimationComplete={() => { homeSeen = true; }} className="space-y-4 pt-2 @4xl:pt-4">
       <m.div variants={rise} className="grid gap-4 @4xl:grid-cols-12">
         <AskCard firstName={first} chips={chips} onAsk={onAsk} className="@4xl:col-span-8" />
         <NeedsAttention items={attention} onAct={act} className="@4xl:col-span-4" />
@@ -75,7 +78,7 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
           <ul className="px-2 pb-1">
             {insights.slice(0, 5).map((i) => (
               <li key={i.id}>
-                <button type="button" onClick={() => onAsk(i.prompt)} className="focus-ring-inset group flex w-full items-center gap-3 rounded-tile px-3 py-2.5 text-left transition-colors hover:bg-muted/60">
+                <button type="button" onClick={() => onAsk(i.prompt)} className="focus-ring-inset group flex w-full items-center gap-3 rounded-tile px-3 py-2.5 text-left transition-colors hover:bg-muted/60 active:bg-muted/80">
                   <span className="min-w-0 flex-1">
                     <span className="block text-[14px] font-semibold">{i.title}</span>
                     <span className="mt-0.5 line-clamp-2 block text-[13px] leading-snug text-muted-foreground">{i.detail}</span>
@@ -93,11 +96,16 @@ export function OverviewScreen({ data, onOpenPolicy, onAsk, onNavigate }: { data
 
 // ---------- Ask card ----------
 
-/** Types out example questions one after another while `enabled` (the field is empty and not focused). */
+/**
+ * Types out example questions one after another while `enabled` (the field is empty and not focused). It goes
+ * through the list once, then rests on the normal placeholder — no endless motion on the page.
+ */
+let typedOnce = false;
 function useTypedExamples(examples: string[], enabled: boolean) {
   const [text, setText] = useState('');
+  const [done, setDone] = useState(typedOnce);
   useEffect(() => {
-    if (!enabled || !examples.length) { setText(''); return; }
+    if (!enabled || done || !examples.length) { setText(''); return; }
     let i = 0, n = 0, deleting = false;
     let t: ReturnType<typeof setTimeout>;
     const tick = () => {
@@ -106,18 +114,24 @@ function useTypedExamples(examples: string[], enabled: boolean) {
         n++;
         setText(full.slice(0, n));
         if (n >= full.length) { deleting = true; t = setTimeout(tick, 1800); return; }
-        t = setTimeout(tick, 38 + Math.random() * 30);
+        t = setTimeout(tick, 42);
       } else {
         n = Math.max(0, n - 2);
         setText(full.slice(0, n));
-        if (n === 0) { deleting = false; i++; t = setTimeout(tick, 350); return; }
+        if (n === 0) {
+          deleting = false;
+          i++;
+          if (i >= examples.length) { typedOnce = true; setDone(true); return; }
+          t = setTimeout(tick, 350);
+          return;
+        }
         t = setTimeout(tick, 18);
       }
     };
     t = setTimeout(tick, 600);
     return () => clearTimeout(t);
-  }, [enabled, examples]);
-  return text;
+  }, [enabled, done, examples]);
+  return { text, done };
 }
 
 type Chip = { label: string; q: string };
@@ -129,8 +143,8 @@ function AskCard({ firstName, chips, onAsk, className = '' }: { firstName: strin
   const mascotRef = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const examples = useMemo(() => chips.map((c) => c.q), [chips]);
-  const typed = useTypedExamples(examples, !reduce && !focused && !q);
-  const showTyped = !reduce && !focused && !q;
+  const { text: typed, done: typedDone } = useTypedExamples(examples, !reduce && !focused && !q);
+  const showTyped = !reduce && !focused && !q && !typedDone;
 
   // The mascot leans toward the pointer (small range), toward the field when it's focused, and hops on submit
   const rotate = useSpring(0, { stiffness: 220, damping: 18 });
@@ -162,10 +176,9 @@ function AskCard({ firstName, chips, onAsk, className = '' }: { firstName: strin
     e.preventDefault();
     const text = q.trim();
     if (!text) return;
-    if (reduce) { onAsk(text); return; }
-    hop.set(-16);
-    setTimeout(() => hop.set(0), 120);
-    setTimeout(() => onAsk(text), 260);
+    // Send straight away; the mascot's hop plays alongside, never in front of the request
+    if (!reduce) { hop.set(-16); setTimeout(() => hop.set(0), 120); }
+    onAsk(text);
   };
 
   return (
@@ -179,7 +192,7 @@ function AskCard({ firstName, chips, onAsk, className = '' }: { firstName: strin
       <div ref={mascotRef} className="pointer-events-none absolute right-5 top-1/2 hidden -translate-y-1/2 @4xl:block" aria-hidden="true">
         <span className="absolute left-1/2 top-1/2 size-56 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--color-primary)_28%,transparent)_0%,transparent_70%)]" />
         <m.div style={{ rotate, x: lean, y: hop }} className="relative">
-          <Mascot className="animate-float w-[140px] @6xl:w-[160px]" />
+          <span className="animate-float block" style={{ animationIterationCount: 2 }}><Mascot className="w-[140px] @6xl:w-[160px]" /></span>
         </m.div>
       </div>
 
@@ -213,7 +226,8 @@ function AskCard({ firstName, chips, onAsk, className = '' }: { firstName: strin
               maxLength={1500}
               autoComplete="off"
               enterKeyHint="send"
-              placeholder={showTyped ? '' : 'Ask about your cover'}
+              name="question"
+              placeholder={showTyped ? '' : 'Ask about your cover…'}
               className="h-10 min-w-0 border-0 bg-transparent px-0 text-[16px] shadow-none placeholder:text-muted-foreground focus-visible:ring-0 md:text-[15px] dark:bg-transparent"
             />
             {showTyped && (
@@ -318,7 +332,7 @@ function KeyFigures({ f, className = '' }: { f: ReturnType<typeof summaryFigures
           {money(f.healthCoverLeft)} <span className="text-[13px] font-medium text-muted-foreground">of {money(f.healthCoverTotal)}</span>
         </p>
         <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${left}% of health cover left`}>
-          <m.div className="h-full rounded-full bg-primary" initial={{ width: 0 }} animate={{ width: `${left}%` }} transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.3 }} />
+          <m.div className="h-full rounded-full bg-primary" initial={{ width: 0 }} animate={{ width: `${left}%` }} transition={{ type: 'spring', bounce: 0, visualDuration: 0.7, delay: homeSeen ? 0 : 0.3 }} />
         </div>
       </div>
       <div className={tile}>
@@ -401,7 +415,7 @@ function YourPolicies({ policies, onOpen, onAsk, onViewAll, className = '' }: { 
         {sorted.map((p) => {
           const days = daysUntil(p.renewalDate);
           return (
-            <li key={p.id} className="group flex items-center gap-1 rounded-card transition-colors hover:bg-muted/60">
+            <li key={p.id} className="group flex items-center gap-1 rounded-card transition-colors hover:bg-muted/60 active:bg-muted/80">
               <button type="button" onClick={() => onOpen(p)} data-policy-id={p.id} className="focus-ring-inset flex min-w-0 flex-1 items-center gap-3 rounded-card px-3 py-3 text-left">
                 <CategoryIcon c={p.category} />
                 <span className="min-w-0 flex-1">
@@ -422,7 +436,7 @@ function YourPolicies({ policies, onOpen, onAsk, onViewAll, className = '' }: { 
                 size="sm"
                 onClick={() => onAsk(explainPrompt(p))}
                 aria-label={`Ask about ${p.name}`}
-                className="mr-1 h-10 w-10 px-0 text-link hover:text-link @xl:w-auto @xl:px-3 @xl:[@media(hover:hover)]:opacity-0 @xl:[@media(hover:hover)]:group-hover:opacity-100 @xl:focus-visible:opacity-100"
+                className="mr-1 h-10 w-10 px-0 text-link transition-colors hover:text-link @xl:w-auto @xl:px-3 @xl:text-muted-foreground @xl:group-hover:text-link @xl:focus-visible:text-link"
               >
                 <span className="grid size-8 place-items-center rounded-full bg-accent text-link @xl:hidden" aria-hidden="true"><ArrowUpRight className="size-4" /></span>
                 <span className="hidden text-[13px] font-semibold @xl:inline">Ask</span>
@@ -456,7 +470,7 @@ function Activity({ data, onNavigate, className = '' }: { data: PortfolioData; o
         {rows.map((r) =>
           r.kind === 'claim' ? (
             <li key={r.c.id}>
-              <button type="button" onClick={() => onNavigate('claims')} className="focus-ring-inset flex w-full items-center gap-3 rounded-card px-3 py-2.5 text-left transition-colors hover:bg-muted/60">
+              <button type="button" onClick={() => onNavigate('claims')} className="focus-ring-inset flex w-full items-center gap-3 rounded-card px-3 py-2.5 text-left transition-colors hover:bg-muted/60 active:bg-muted/80">
                 <span className={`grid size-9 shrink-0 place-items-center rounded-full ${TONE.ok}`} aria-hidden="true"><Receipt className="size-4" /></span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[14px] font-semibold">{r.c.title}</span>
@@ -470,7 +484,7 @@ function Activity({ data, onNavigate, className = '' }: { data: PortfolioData; o
             </li>
           ) : (
             <li key={r.d.id}>
-              <button type="button" onClick={() => onNavigate('documents')} className="focus-ring-inset flex w-full items-center gap-3 rounded-card px-3 py-2.5 text-left transition-colors hover:bg-muted/60">
+              <button type="button" onClick={() => onNavigate('documents')} className="focus-ring-inset flex w-full items-center gap-3 rounded-card px-3 py-2.5 text-left transition-colors hover:bg-muted/60 active:bg-muted/80">
                 <span className={`grid size-9 shrink-0 place-items-center rounded-full ${r.d.trusted ? TONE.neutral : TONE.warn}`} aria-hidden="true">
                   {r.d.trusted ? <FileText className="size-4" /> : <TriangleAlert className="size-4" />}
                 </span>

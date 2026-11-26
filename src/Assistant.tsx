@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, ChevronRight, LoaderCircle, OctagonAlert, RotateCcw, ShieldAlert } from 'lucide-react';
-import { AnimatePresence, LayoutGroup, animate, m, useDragControls, useMotionValue, useReducedMotion, type PanInfo, type Variants } from 'motion/react';
+import { AnimatePresence, LayoutGroup, m, useReducedMotion, type Variants } from 'motion/react';
 import NumberFlow from '@number-flow/react';
 import type { AgentAnswer, AgentStep, Confidence, ConfidenceFactor, CoverageStatus, EvidenceItem, FactorStatus, Policy, PortfolioData, Verdict } from '../shared/types';
 import { askAgent, fmtMoney } from './format';
@@ -13,7 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { EASE, SPRING, rise, riseSm, stagger, wait } from './motion';
+import { SETTLE, SETTLE_FAST, SPRING, rise, riseSm, stagger } from './motion';
+import { useSpringSheet } from './sheet';
 
 export const ASSISTANT_PANEL_ID = 'companion-panel';
 
@@ -53,9 +54,17 @@ export function AssistantView({
   // Replays the landing's greeting each time the phone assistant opens
   const [opens, setOpens] = useState(0);
   useEffect(() => { if (active) setOpens((n) => n + 1); }, [active]);
-  // Phones: swipe down on the header to dismiss
-  const dragY = useMotionValue(0);
-  const dragControls = useDragControls();
+  // Phones: a spring-driven full-screen sheet (same path in and out; drag the header, or the conversation when it's
+  // scrolled to the top, to dismiss)
+  const sheet = useSpringSheet({ open: active && !wide, onDismiss: onClose, panelRef, scrollRef: scrollRef as React.RefObject<HTMLElement | null> });
+  // Ambient loops on the landing settle down: the background drifts for 8 seconds after opening, then holds still
+  const [ambient, setAmbient] = useState(true);
+  useEffect(() => {
+    if (!active) return;
+    setAmbient(true);
+    const t = setTimeout(() => setAmbient(false), 8000);
+    return () => clearTimeout(t);
+  }, [active]);
 
   // Phones: a full-screen modal view (focus trap, Escape, focus return). Wider screens: a normal page.
   useOverlay(panelRef, onClose, true, '[data-ask-trigger]', active && !wide);
@@ -110,26 +119,12 @@ export function AssistantView({
     const my = ++reqId.current;
     const timer = setTimeout(() => ac.abort(), 90_000);
     try {
-      // The local engine answers almost instantly. Its real steps are shown one at a time, briefly enough to read
-      // (about 1.5 seconds in all); nothing is shown that the engine didn't actually do.
-      let received = 0;
-      let reveal = Promise.resolve();
-      const onStep = (step: AgentStep) => {
-        received++;
-        reveal = reveal.then(async () => {
-          if (my !== reqId.current) return;
-          setLiveSteps((prev) => [...prev, step]);
-          await wait(Math.max(220, Math.min(420, 1500 / received)));
-        });
-      };
+      // No artificial delay: the answer appears as soon as the local engine responds. Its real steps stream into the
+      // live trace while the request is in flight (only visible if it takes a moment), and the answer's own
+      // "Checked N steps" header ticks them off quickly as it appears.
+      const onStep = (step: AgentStep) => { if (my === reqId.current) setLiveSteps((prev) => [...prev, step]); };
       const answer = await askAgent(q, onStep, ac.signal);
-      await reveal;
       if (my !== reqId.current) return; // conversation was reset
-      if (received) {
-        setStepsDone(true);
-        await wait(260);
-        if (my !== reqId.current) return;
-      }
       setMsgs((m) => [...m, { id: nextId++, role: 'assistant', answer }]);
     } catch (e) {
       if (my !== reqId.current) return;
@@ -206,7 +201,7 @@ export function AssistantView({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, transition: { duration: 0.18 } }}
-            transition={{ duration: 0.3, ease: EASE, delay: 0.18 }}
+            transition={{ ...SETTLE_FAST, delay: 0.3 }}
           >
             <AgentTrace steps={liveSteps} done={stepsDone} />
           </m.div>
@@ -223,14 +218,22 @@ export function AssistantView({
         animate={{ scale: composerFocus && !wide ? 1.015 : 1, y: composerFocus && !wide ? -2 : 0 }}
         transition={SPRING}
         className={`flex items-end gap-2 rounded-[28px] border p-1.5 pl-5 transition-[background-color,border-color,box-shadow] duration-500 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20 ${
-          glass ? 'border-white/70 bg-card/75 shadow-float backdrop-blur-xl dark:border-white/10 dark:bg-card/70' : 'border-line bg-card shadow-card'
+          glass ? 'border-white/70 bg-card/75 shadow-float backdrop-blur-xl dark:border-white/10 dark:bg-card/70 [@media(pointer:coarse)]:bg-card/95 [@media(pointer:coarse)]:backdrop-blur-sm' : 'border-line bg-card shadow-card'
         }`}
       >
         <Textarea
           id="companion-input"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); } }}
+          onKeyDown={(e) => {
+            // Never send while an input method (IME) is composing text
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); send(input); }
+          }}
+          name="question"
+          autoComplete="off"
+          autoCorrect="on"
+          autoCapitalize="sentences"
+          spellCheck
           onFocus={() => setComposerFocus(true)}
           onBlur={() => setComposerFocus(false)}
           rows={1}
@@ -293,14 +296,11 @@ export function AssistantView({
 
   // ---------- phones: full-screen view ----------
   if (!wide) {
-    const dismiss = (_: unknown, info: PanInfo) => {
-      if (info.offset.y > 140 || info.velocity.y > 700) {
-        if (reduce) { onClose(); dragY.set(0); return; }
-        animate(dragY, window.innerHeight, { duration: 0.22, ease: EASE }).then(() => { onClose(); dragY.set(0); });
-      }
-    };
     const listening = composerFocus || hasText;
     return (
+      <>
+      {/* Scrim: the screen behind dims in proportion to how far the sheet is open */}
+      <m.div aria-hidden="true" hidden={!sheet.present} style={{ opacity: sheet.progress }} className="pointer-events-none fixed inset-0 z-50 bg-black/40" />
       <m.section
         ref={panelRef}
         id={ASSISTANT_PANEL_ID}
@@ -308,32 +308,25 @@ export function AssistantView({
         aria-modal="true"
         aria-labelledby="companion-title"
         tabIndex={-1}
-        hidden={!active}
-        drag="y"
-        dragListener={false}
-        dragControls={dragControls}
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 0.7 }}
-        dragMomentum={false}
-        onDragEnd={dismiss}
+        hidden={!sheet.present}
         // Sized to the visual viewport, so the composer stays above the on-screen keyboard
-        style={{ y: dragY, ...(viewport ? { top: viewport.top, height: viewport.height, bottom: 'auto' } : {}) }}
-        className="animate-sheet fixed inset-0 z-50 flex flex-col overflow-hidden bg-background outline-none"
+        style={{ y: sheet.offset, ...(viewport ? { top: viewport.top, height: viewport.height, bottom: 'auto' } : {}) }}
+        className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background outline-none"
       >
         {/* The landing's sky fills the whole screen and fades to the chat background once the conversation starts */}
         <m.div
           aria-hidden="true"
           initial={false}
           animate={{ opacity: empty ? 1 : 0 }}
-          transition={{ duration: 0.6, ease: EASE }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} /* opacity crossfade only */
           className="pointer-events-none absolute inset-0 overflow-hidden bg-gradient-to-b from-sky-from via-sky-to to-sky-to"
         >
-          <span className="blob blob-a" />
-          <span className="blob blob-b" />
+          <span className="blob blob-a" style={{ animationPlayState: ambient ? 'running' : 'paused' }} />
+          <span className="blob blob-b" style={{ animationPlayState: ambient ? 'running' : 'paused' }} />
         </m.div>
 
         <header
-          onPointerDown={(e) => dragControls.start(e)}
+          {...sheet.handleProps}
           className={`relative flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 touch-none select-none items-center gap-1 border-b px-1.5 pt-[env(safe-area-inset-top)] transition-[background-color,border-color] duration-500 ${empty ? 'border-transparent bg-transparent' : 'border-line bg-card'}`}
         >
           {/* Grab handle: swipe down to close */}
@@ -367,7 +360,8 @@ export function AssistantView({
                   />
                   <m.div variants={rise} className="relative">
                     <m.div animate={listening ? { scale: 1.06, rotate: -4, y: -2 } : { scale: 1, rotate: 0, y: 0 }} transition={SPRING}>
-                      <Mascot className="animate-float w-24" />
+                      {/* Floats for two cycles after opening, and keeps floating while the person types */}
+                      <span className="animate-float block" style={{ animationIterationCount: listening ? 'infinite' : 2 }}><Mascot className="w-24" /></span>
                     </m.div>
                   </m.div>
                 </div>
@@ -387,7 +381,7 @@ export function AssistantView({
                         onClick={() => { setMorphFrom(s.q); send(s.q); }}
                         aria-label={`${s.title}: ${s.q}`}
                         style={{ borderRadius: 16 }}
-                        className="flex w-full items-center gap-3 border border-white/70 bg-card/70 p-3 text-left shadow-card backdrop-blur-md transition-colors hover:bg-card/90 dark:border-white/[0.06] dark:bg-card/60"
+                        className="flex w-full items-center gap-3 border border-white/70 bg-card/70 p-3 text-left shadow-card backdrop-blur-md transition-colors hover:bg-card/90 dark:border-white/[0.06] dark:bg-card/60 [@media(pointer:coarse)]:bg-card/90 [@media(pointer:coarse)]:backdrop-blur-none"
                       >
                         <span className={`grid size-9 shrink-0 place-items-center rounded-full ${s.urgent ? 'bg-bad-bg text-bad' : 'bg-accent text-link'}`} aria-hidden="true">
                           <s.icon className="size-[17px]" />
@@ -413,6 +407,7 @@ export function AssistantView({
         <p className="sr-only" aria-live="polite">{status}</p>
         <div className={`relative shrink-0 px-3 pt-2 ${viewport?.keyboard ? 'pb-2' : 'pb-[max(env(safe-area-inset-bottom),10px)]'}`}>{composer(empty)}</div>
       </m.section>
+      </>
     );
   }
 
@@ -438,13 +433,13 @@ export function AssistantView({
           <AnimatePresence mode="wait" initial={false}>
           {empty ? (
             <m.div key="welcome" initial="hidden" animate="show" exit={{ opacity: 0, y: -8, transition: { duration: 0.16 } }} variants={stagger(0.07)} className="mx-auto flex min-h-full max-w-[680px] flex-col items-center justify-center py-8 text-center">
-              <m.div variants={rise}><Mascot className="animate-float w-32" /></m.div>
+              <m.div variants={rise}><span className="animate-float block" style={{ animationIterationCount: composerFocus || hasText ? 'infinite' : 2 }}><Mascot className="w-32" /></span></m.div>
               <m.p variants={rise} className="mt-3 text-[28px] font-medium tracking-tight">Hi {firstName}, how can I help?</m.p>
               <m.p variants={rise} className="mt-1 text-[14px] text-muted-foreground">Ask about any of your health and term life policies.</m.p>
               <m.ul variants={stagger(0.06)} className="mt-7 grid w-full grid-cols-2 gap-3 text-left" aria-label="Suggested questions">
                 {FEATURED.map((s) => (
                   <m.li key={s.q} variants={rise} className="flex">
-                    <m.button type="button" whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} transition={SPRING} onClick={() => send(s.q)} aria-label={`${s.title}: ${s.q}`} className="flex w-full items-start gap-3 rounded-card border border-line bg-card p-4 text-left transition-[border-color,background-color,box-shadow] hover:border-primary/40 hover:bg-accent/40 hover:shadow-card">
+                    <m.button type="button" whileTap={{ scale: 0.97 }} transition={SPRING} onClick={() => send(s.q)} aria-label={`${s.title}: ${s.q}`} className="flex w-full items-start gap-3 rounded-card border border-line bg-card p-4 text-left transition-[border-color,background-color,box-shadow] hover:border-primary/40 hover:bg-accent/40 hover:shadow-card">
                       <span className={`grid size-9 shrink-0 place-items-center rounded-full ${s.urgent ? 'bg-bad-bg text-bad' : 'bg-accent text-link'}`} aria-hidden="true"><s.icon className="size-[17px]" /></span>
                       <span className="min-w-0">
                         <span className="block text-[14px] font-semibold">{s.title}</span>
@@ -469,7 +464,7 @@ export function AssistantView({
       {rail && (
         <aside aria-label={latestAnswer ? 'About this answer' : 'Your policies'} className={`${surface} hidden min-h-0 flex-col overflow-hidden xl:flex`}>
           <h2 className="px-5 pb-2 pt-5 text-[15px] font-semibold">{latestAnswer ? 'About this answer' : 'Your policies'}</h2>
-          <m.div key={latestAnswer ? msgs.length : 'policies'} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.35, ease: EASE }} className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
+          <m.div key={latestAnswer ? msgs.length : 'policies'} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={SETTLE} className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
             {latestAnswer ? <AnswerDetails a={latestAnswer} /> : (
               <>
                 <p className="text-[13px] text-muted-foreground">The assistant answers from these policies and cites their clauses.</p>
@@ -524,7 +519,7 @@ function WordReveal({ text, as, className = '', delay = 0 }: { text: string; as:
   const Tag = as === 'p' ? m.p : m.h3;
   const word: Variants = {
     hidden: reduce ? { opacity: 0 } : { opacity: 0, y: 6, filter: 'blur(6px)' },
-    show: reduce ? { opacity: 1 } : { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.45, ease: EASE } },
+    show: reduce ? { opacity: 1 } : { opacity: 1, y: 0, filter: 'blur(0px)', transition: SETTLE },
   };
   const words = text.split(' ');
   return (
@@ -558,7 +553,7 @@ function AgentTrace({ steps, done }: { steps: AgentStep[]; done: boolean }) {
                   key={i}
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  transition={{ duration: 0.28, ease: EASE }}
+                  transition={SETTLE_FAST}
                   className="overflow-hidden"
                 >
                   <div className="flex items-start gap-2.5 py-1">
@@ -596,7 +591,7 @@ const label = 'mb-2 text-[11px] font-semibold uppercase tracking-wider text-mute
 /** The answer card rises in, then its parts follow one after another. */
 const card: Variants = {
   hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE, staggerChildren: 0.07, delayChildren: 0.06 } },
+  show: { opacity: 1, y: 0, transition: { ...SETTLE, staggerChildren: 0.045, delayChildren: 0.03 } },
 };
 const pop: Variants = {
   hidden: { opacity: 0, scale: 0.6 },
@@ -799,7 +794,7 @@ function ConfidenceStrip({ c, evidence, inline }: { c: Confidence; evidence: Evi
               key={i}
               initial={{ scaleX: 0 }}
               animate={{ scaleX: 1 }}
-              transition={{ duration: 0.3, ease: EASE, delay: 0.35 + i * 0.08 }}
+              transition={{ ...SETTLE_FAST, delay: 0.2 + i * 0.06 }}
               style={{ transformOrigin: '0 50%' }}
               className={`h-1.5 w-4 rounded-full ${i < lvl.filled ? lvl.bar : 'bg-line'}`}
             />
@@ -827,7 +822,7 @@ function ConfidenceStrip({ c, evidence, inline }: { c: Confidence; evidence: Evi
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.26, ease: EASE }}
+                transition={SETTLE_FAST}
                 className="overflow-hidden"
               >
                 <FactorList factors={c.factors} evidence={evidence} />
@@ -907,7 +902,7 @@ function FactorRow({ f, evidence }: { f: ConfidenceFactor; evidence: EvidenceIte
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.24, ease: EASE }}
+            transition={SETTLE_FAST}
             className="overflow-hidden"
           >
             <div className="pb-2 pl-[30px] text-[13px] leading-relaxed text-ink-2">
@@ -949,7 +944,7 @@ function StepsSummary({ steps }: { steps: AgentStep[] }) {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.26, ease: EASE }}
+            transition={SETTLE_FAST}
             className="overflow-hidden"
           >
             {steps.map((s, i) => (

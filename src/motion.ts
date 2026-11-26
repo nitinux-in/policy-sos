@@ -16,16 +16,33 @@ export const stagger = (gap = 0.06, delay = 0): Variants => ({
   show: { transition: { staggerChildren: gap, delayChildren: delay } },
 });
 
+/**
+ * Springs with no bounce for things that simply arrive or change size: they start from the current value and carry
+ * its velocity, so an interrupted animation never jumps. `visualDuration` is the time to (visually) settle.
+ */
+export const SETTLE: Transition = { type: 'spring', bounce: 0, visualDuration: 0.38 };
+export const SETTLE_FAST: Transition = { type: 'spring', bounce: 0, visualDuration: 0.26 };
+
+/** Sheets (phone assistant, policy sheet): open and close along the same path. */
+export const SHEET_SPRING: Transition = { type: 'spring', bounce: 0, visualDuration: 0.35 };
+/** After a flick, a little bounce carries the release velocity. */
+export const SHEET_FLICK = (velocity: number): Transition => ({ type: 'spring', bounce: 0.15, visualDuration: 0.35, velocity });
+/** Desktop side panel: a touch quicker. */
+export const PANEL_SPRING: Transition = { type: 'spring', bounce: 0, visualDuration: 0.3 };
+
+/** Where a flick would come to rest: Apple's project(v, decelerationRate 0.998), with v in px/s. */
+export const project = (velocity: number, decelerationRate = 0.998) => ((velocity / 1000) * decelerationRate) / (1 - decelerationRate);
+
 /** Child that fades and rises into place. */
 export const rise: Variants = {
   hidden: { opacity: 0, y: 10 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.42, ease: EASE } },
+  show: { opacity: 1, y: 0, transition: SETTLE },
 };
 
 /** Smaller rise for dense items (list rows, chips). */
 export const riseSm: Variants = {
   hidden: { opacity: 0, y: 6 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.32, ease: EASE } },
+  show: { opacity: 1, y: 0, transition: SETTLE_FAST },
 };
 
 export const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));

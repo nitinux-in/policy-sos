@@ -1,6 +1,7 @@
 // App-level building blocks on top of shadcn/ui (src/components/ui), carrying the Ditto branding.
 
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
+import { flushSync } from 'react-dom';
 import { Moon, Sun, X, type LucideIcon } from 'lucide-react';
 import { cn } from 'cn';
 import type { Category, Policy } from '../shared/types';
@@ -17,8 +18,8 @@ import { rise } from './motion';
 export function DittoLogo({ className = '' }: { className?: string }) {
   return (
     <span className={cn('inline-flex shrink-0', className)}>
-      <img src="/brand/ditto-logo.png" alt="Ditto" className="logo-light h-full w-auto" />
-      <img src="/brand/ditto-logo-dark.png" alt="Ditto" className="logo-dark h-full w-auto" />
+      <img src="/brand/ditto-logo.png" alt="Ditto" width={358} height={120} translate="no" className="logo-light h-full w-auto" />
+      <img src="/brand/ditto-logo-dark.png" alt="Ditto" width={358} height={120} translate="no" className="logo-dark h-full w-auto" />
     </span>
   );
 }
@@ -27,14 +28,14 @@ export function DittoLogo({ className = '' }: { className?: string }) {
 export function MascotAvatar({ className = '' }: { className?: string }) {
   return (
     <span className={cn('inline-grid size-8 shrink-0 place-items-center overflow-hidden rounded-full bg-accent', className)} aria-hidden="true">
-      <img src="/brand/mascot-avatar.png" alt="" className="size-full object-cover" />
+      <img src="/brand/mascot-avatar.png" alt="" width={160} height={160} decoding="async" className="size-full object-cover" />
     </span>
   );
 }
 
 /** The full Ditto mascot (headset and laptop) for assistant surfaces. */
 export function Mascot({ className = '' }: { className?: string }) {
-  return <img src="/brand/mascot-assistant.png" alt="" aria-hidden="true" className={cn('pointer-events-none select-none object-contain', className)} />;
+  return <img src="/brand/mascot-assistant.png" alt="" aria-hidden="true" width={480} height={472} decoding="async" className={cn('pointer-events-none select-none object-contain', className)} />;
 }
 
 /** Initials avatar for the signed-in person. */
@@ -194,12 +195,13 @@ export function CloseButton({ onClick, label }: { onClick: () => void; label: st
 
 export type Theme = 'light' | 'dark';
 const THEME_KEY = 'dic-theme';
-const THEME_COLOR: Record<Theme, string> = { light: '#ffffff', dark: '#161a1f' };
+const THEME_COLOR: Record<Theme, string> = { light: '#f2f4f7', dark: '#0e1114' };
 
 /** Light by default; a dark choice is remembered on this device only (index.html applies it before first paint). */
 export function useTheme(): [Theme, () => void] {
   const [theme, setTheme] = useState<Theme>(() => (document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'));
-  useEffect(() => {
+  // Layout effect so the theme is on the page before a View Transition takes its "after" snapshot
+  useLayoutEffect(() => {
     const root = document.documentElement;
     if (theme === 'dark') root.dataset.theme = 'dark';
     else delete root.dataset.theme;
@@ -211,7 +213,15 @@ export function useTheme(): [Theme, () => void] {
       // Storage can be unavailable (private mode); the theme still applies for this visit.
     }
   }, [theme]);
-  return [theme, () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))];
+  const toggle = () => {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark';
+    const apply = () => flushSync(() => setTheme(next));
+    const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+    // A short cross-fade instead of a full-screen brightness jump; instant with reduced motion
+    if (doc.startViewTransition && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) doc.startViewTransition(apply);
+    else apply();
+  };
+  return [theme, toggle];
 }
 
 /** Icon-only theme button. */
